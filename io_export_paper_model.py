@@ -50,8 +50,10 @@ from re import compile as re_compile
 from itertools import chain, repeat, product, combinations
 from math import pi, ceil, asin, atan2
 import os.path as os_path
+import logging
+from lxml import etree
+import re
 
-import svg
 
 
 
@@ -1102,6 +1104,11 @@ class UVVertex:
         self.co = vector.xy
         self.tup = tuple(self.co)
 
+    def __next__(self):
+        raise StopIteration()
+    def __iter__(self):
+        return self
+
 
 class UVEdge:
     """Edge in 2D"""
@@ -1179,6 +1186,94 @@ class Arrow:
         self.bounds = [self.center, self.center + (1.2 * normal + tangent) * size, self.center + (1.2 * normal - tangent) * size]
 
 
+# /////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+the_path = "Stickers/tooth-pulltab.svg"
+logger = logging.getLogger(__name__)
+ns = {"u": "http://www.w3.org/2000/svg"}
+
+vertices = []
+
+def load_svg(path):
+    parser = etree.XMLParser(remove_comments=True, recover=True)
+    try:
+        doc = etree.parse(path, parser=parser)
+        svg_root = doc.getroot()
+    except Exception as exc:
+        logger.error("Failed to load input file! (%s)" % exc)
+    else:
+        return svg_root
+
+
+def svg2uv(path):
+    # vertices.clear()
+
+    svg_root = load_svg(path)
+    if svg_root is None:
+        print("SVG import blowed up, no root!")
+        return
+
+    polylines = svg_root.findall("u:polyline", ns)
+    paths = svg_root.findall("u:path", ns)
+
+    # Make Polyline Vectors
+    polyline_vectors = []
+
+    for p in polylines:
+        points = p.attrib['points']
+        polyline_vectors += vectorize_polylines(points)
+    for v in polyline_vectors:
+        makeUVVertices(v)
+        print("p")
+    # Make Path vectors
+    path_vectors = []
+    for p in paths:
+        path = p.attrib['d']
+        path_vectors += vectorize_paths(path)
+    return vertices
+
+
+
+def vectorize_paths(path):
+    # "M0,0H250V395.28a104.71,104.71,0,0,0,11.06,46.83h0A104.71,104.71,0,0,0,354.72,500h40.56a104.71,104.71,0,0,0,93.66-57.89h0A104.71,104.71,0,0,0,500,395.28V0"
+    r = re.compile('[MmHhAaVv][\d,\.-]*')  # split by commands
+    p = re.sub(r'-', r',-', path)  # make sure to catch negatives
+    commands = r.findall(p)
+    for c in commands:
+        command = c[0]
+        parameters = [float(i) for i in c[1:].split(",")]
+        print(command, parameters)
+
+    print(commands)
+    return []
+
+
+def vectorize_polylines(points):
+    points = points.replace(",", " ") 
+    ps = points.split()
+    xs = ps[0::2]  # every second element starting at 0
+    ys = ps[1::2]  # every second element starting at 1
+    lines = []
+
+    for i in range(0, len(xs)):
+        x1 = float(xs[i])
+        y1 = float(ys[i])
+        # fs = [float(i) for i in [x1,y1,x2,y2]]
+        o = {'x1': x1, 'y1': y1}
+        lines.append(o)
+    return lines
+
+
+def makeUVVertices(v):
+    v1 = UVVertex(M.Vector((v["x1"], v["y1"])) * 0.00001) #scaling down to avoid overflow
+
+    vertices.append(v1)
+
+    # print("this line goes from point [%d, %d] to point [%d, %d]" % (v["x1"], v["y1"], v["x2"], v["y2"]))
+
+
+
+#//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class Sticker:
     """Mark in the document: sticker tab"""
     __slots__ = ('bounds', 'center', 'rot', 'text', 'width', 'vertices')
@@ -1232,40 +1327,34 @@ class Sticker:
 
         self.width = sticker_width * 0.9
 
-        raiseleft = M.Matrix(((cos_b, -sin_b), (sin_b, cos_b))) @ edge * len_b / edge.length
-        raiseright = M.Matrix(((-cos_a, -sin_a), (sin_a, -cos_a))) @ edge * len_a / edge.length
+        # raiseleft = M.Matrix(((cos_b, -sin_b), (sin_b, cos_b))) @ edge * len_b / edge.length
+        # raiseright = M.Matrix(((-cos_a, -sin_a), (sin_a, -cos_a))) @ edge * len_a / edge.length
 
-        
+        # drawing = svg2rlg("tooth-sawtooth.svg")
+        tab = svg2uv("C:\Program Files\\Blender Foundation\\Blender 2.81\\2.81\\scripts\\addons\\Stickers\\tooth-sawtooth.svg")
+        # print(tab)
 
-        v3 = UVVertex(second_vertex.co + raiseleft) #go up #1
-        v4 = UVVertex(first_vertex.co) #go down
-        v5 = UVVertex((15*first_vertex.co + 85*second_vertex.co)/100 +raiseright) #stay up #1
-        v6 = UVVertex((15*first_vertex.co + 85*second_vertex.co)/100) #go down #1
-        v7 = UVVertex((25*first_vertex.co + 75*second_vertex.co)/100) #stay down #1
+        v3 = tab[0]
+        v4 = tab[1]
 
-        v8 = UVVertex((25*first_vertex.co + 75*second_vertex.co)/100 + raiseleft) #go up #2
-        v9 = UVVertex((40*first_vertex.co + 60*second_vertex.co)/100 + raiseright) #stay up #2
-        v10 = UVVertex((40*first_vertex.co + 60*second_vertex.co)/100 ) #go down #2
-        v11 = UVVertex((50*first_vertex.co + 50*second_vertex.co)/100 ) #stay down #2
 
-        v12 = UVVertex((50*first_vertex.co + 50*second_vertex.co)/100 + raiseleft) #go up #3
-        v13 = UVVertex((65*first_vertex.co + 35*second_vertex.co)/100 + raiseright) #stay up #3
-        v14 = UVVertex((65*first_vertex.co + 35*second_vertex.co)/100 ) #go down #3
-        v15 = UVVertex((75*first_vertex.co + 25*second_vertex.co)/100 ) #stay down #3
+        self.vertices = [second_vertex, v3, v4,
+                         first_vertex]
 
-        v16 = UVVertex((75 * first_vertex.co + 25 * second_vertex.co) / 100 + raiseleft)  # go up #4
-        v17 = UVVertex((90 * first_vertex.co + 10 * second_vertex.co) / 100 + raiseright)  # stay up #4
-        v18 = UVVertex((90 * first_vertex.co + 10 * second_vertex.co) / 100)  # go down #4
-
-        self.vertices = [second_vertex, v3, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v4, first_vertex]
+        # self.vertices = [second_vertex]
+        # self.vertices.extend(tab[1])
+        # # self.vertices.extend(first_vertex)
+        # print(self.vertices[0].co)
 
         if index and uvedge.uvface.island is not other.uvface.island:
             self.text = "{}:{}".format(other.uvface.island.abbreviation, index)
         else:
             self.text = index
         self.center = (uvedge.va.co + uvedge.vb.co) / 2 + self.rot @ M.Vector((0, self.width * 0.2))
-        self.bounds = [v3.co, v4.co, v5.co, v6.co, v7.co, v8.co, v9.co, v10.co, v11.co, v12.co, v13.co, v14.co, v15.co, v16.co, v17.co, v18.co, self.center] if v3.co != v4.co else [v3.co, self.center]
-
+        self.bounds = [v3.co, v4.co, self.center] if v3.co != v4.co else [v3.co, self.center]
+        # self.bounds = []
+        # self.bounds.extend(tab[1])
+        # self.bounds.extend(self.center)
 
 class NumberAlone:
     """Mark in the document: numbering inside the island denoting edges to be sticked"""
