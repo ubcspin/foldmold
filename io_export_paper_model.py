@@ -1224,7 +1224,7 @@ def svg2uv(path):
         polyline_vectors += vectorize_polylines(points)
     for v in polyline_vectors:
         makeUVVertices(v)
-        print("p")
+        
     # Make Path vectors
     path_vectors = []
     for p in paths:
@@ -1249,7 +1249,8 @@ def vectorize_paths(path):
 
 
 def vectorize_polylines(points):
-    points = points.replace(",", " ") 
+    points = points.replace(",", " ")
+
     ps = points.split()
     xs = ps[0::2]  # every second element starting at 0
     ys = ps[1::2]  # every second element starting at 1
@@ -1321,40 +1322,36 @@ class Sticker:
         len_a = min(len_a, (edge.length * sin_b) / (sin_a * cos_b + sin_b * cos_a))
         len_b = 0 if sin_b == 0 else min(sticker_width / sin_b, (edge.length - len_a * cos_a) / cos_b)
 
-        sin, cos = edge.y / edge.length, edge.x / edge.length
+        tangent = edge.normalized()
+        cos, sin = tangent
         self.rot = M.Matrix(((cos, -sin), (sin, cos)))
-
 
         self.width = sticker_width * 0.9
 
-        # raiseleft = M.Matrix(((cos_b, -sin_b), (sin_b, cos_b))) @ edge * len_b / edge.length
-        # raiseright = M.Matrix(((-cos_a, -sin_a), (sin_a, -cos_a))) @ edge * len_a / edge.length
-
-        # drawing = svg2rlg("tooth-sawtooth.svg")
         tab = svg2uv("C:\Program Files\\Blender Foundation\\Blender 2.81\\2.81\\scripts\\addons\\Stickers\\tooth-sawtooth.svg")
-        # print(tab)
 
-        v3 = tab[0]
-        v4 = tab[1]
+        tab_verts = []
+        tab_verts_co = []
+        for i in range (len(tab)):
+            vi = UVVertex((second_vertex.co + self.rot@tab[i].co)+ self.rot @ M.Vector((0, self.width * 0.2)))
+            tab_verts.insert(i, vi)
+            tab_verts_co.insert(i, vi.co)
+
+        self.vertices = tab_verts
+        self.vertices.insert(len(tab), first_vertex)
+        self.vertices.insert(0, second_vertex)
+
+        print(tab_verts)
 
 
-        self.vertices = [second_vertex, v3, v4,
-                         first_vertex]
-
-        # self.vertices = [second_vertex]
-        # self.vertices.extend(tab[1])
-        # # self.vertices.extend(first_vertex)
-        # print(self.vertices[0].co)
 
         if index and uvedge.uvface.island is not other.uvface.island:
             self.text = "{}:{}".format(other.uvface.island.abbreviation, index)
         else:
             self.text = index
         self.center = (uvedge.va.co + uvedge.vb.co) / 2 + self.rot @ M.Vector((0, self.width * 0.2))
-        self.bounds = [v3.co, v4.co, self.center] if v3.co != v4.co else [v3.co, self.center]
-        # self.bounds = []
-        # self.bounds.extend(tab[1])
-        # self.bounds.extend(self.center)
+        self.bounds = tab_verts_co
+        self.bounds.insert(len(tab), self.center)
 
 class NumberAlone:
     """Mark in the document: numbering inside the island denoting edges to be sticked"""
