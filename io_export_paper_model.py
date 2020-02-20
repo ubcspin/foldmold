@@ -1224,6 +1224,7 @@ def svg2uv(path):
         polyline_vectors += vectorize_polylines(points)
     for v in polyline_vectors:
         makeUVVertices(v)
+        
     # Make Path vectors
     path_vectors = []
     for p in paths:
@@ -1249,6 +1250,7 @@ def vectorize_paths(path):
 
 def vectorize_polylines(points):
     points = points.replace(",", " ")
+
     ps = points.split()
     xs = ps[0::2]  # every second element starting at 0
     ys = ps[1::2]  # every second element starting at 1
@@ -1324,8 +1326,6 @@ class Sticker:
         cos, sin = tangent
         self.rot = M.Matrix(((cos, -sin), (sin, cos)))
 
-
-
         self.width = sticker_width * 0.9
 
         tab = svg2uv("C:\Program Files\\Blender Foundation\\Blender 2.81\\2.81\\scripts\\addons\\Stickers\\tooth-sawtooth.svg")
@@ -1344,13 +1344,12 @@ class Sticker:
         print(tab_verts)
 
 
+
         if index and uvedge.uvface.island is not other.uvface.island:
             self.text = "{}:{}".format(other.uvface.island.abbreviation, index)
         else:
             self.text = index
         self.center = (uvedge.va.co + uvedge.vb.co) / 2 + self.rot @ M.Vector((0, self.width * 0.2))
-
-
         self.bounds = tab_verts_co
         self.bounds.insert(len(tab), self.center)
 
