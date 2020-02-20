@@ -23,8 +23,8 @@ bl_info = {
 }
 
 # Task: split into four files (SVG and PDF separately)
-    # does any portion of baking belong into the export module?
-    # sketch out the code for GCODE and two-sided export
+# does any portion of baking belong into the export module?
+# sketch out the code for GCODE and two-sided export
 
 # TODO:
 # sanitize the constructors Edge, Face, UVFace so that they don't edit their parent object
@@ -48,15 +48,11 @@ import bmesh
 import mathutils as M
 from re import compile as re_compile
 from itertools import chain, repeat, product, combinations
-from math import pi, ceil, asin, atan2
+from math import pi, ceil, asin, atan2, floor
 import os.path as os_path
 import logging
 from lxml import etree
 import re
-
-
-
-
 
 default_priority_effect = {
     'CONVEX': 0.5,
@@ -77,6 +73,8 @@ def first_letters(text):
     """Iterator over the first letter of each word"""
     for match in first_letters.pattern.finditer(text):
         yield text[match.start()]
+
+
 first_letters.pattern = re_compile("((?<!\w)\w)|\d")
 
 
@@ -101,8 +99,8 @@ def pairs(sequence):
 def fitting_matrix(v1, v2):
     """Get a matrix that rotates v1 to the same direction as v2"""
     return (1 / v1.length_squared) * M.Matrix((
-        (v1.x*v2.x + v1.y*v2.y, v1.y*v2.x - v1.x*v2.y),
-        (v1.x*v2.y - v1.y*v2.x, v1.x*v2.x + v1.y*v2.y)))
+        (v1.x * v2.x + v1.y * v2.y, v1.y * v2.x - v1.x * v2.y),
+        (v1.x * v2.y - v1.y * v2.x, v1.x * v2.x + v1.y * v2.y)))
 
 
 def z_up_matrix(n):
@@ -111,8 +109,8 @@ def z_up_matrix(n):
     s = n.length
     if b > 0:
         return M.Matrix((
-            (n.x*n.z/(b*s), n.y*n.z/(b*s), -b/s),
-            (-n.y/b, n.x/b, 0),
+            (n.x * n.z / (b * s), n.y * n.z / (b * s), -b / s),
+            (-n.y / b, n.x / b, 0),
             (0, 0, 0)
         ))
     else:
@@ -127,6 +125,7 @@ def z_up_matrix(n):
 def cage_fit(points, aspect):
     """Find rotation for a minimum bounding box with a given aspect ratio
     returns a tuple: rotation angle, box height"""
+
     def guesses(polygon):
         """Yield all tentative extrema of the bounding box height wrt. polygon rotation"""
         for a, b in pairs(polygon):
@@ -138,7 +137,7 @@ def cage_fit(points, aspect):
             rot_polygon = [rot @ p for p in polygon]
             left, right = [fn(rot_polygon, key=lambda p: p.to_tuple()) for fn in (min, max)]
             bottom, top = [fn(rot_polygon, key=lambda p: p.yx.to_tuple()) for fn in (min, max)]
-            #print(f"{rot_polygon.index(left)}-{rot_polygon.index(right)}, {rot_polygon.index(bottom)}-{rot_polygon.index(top)}")
+            # print(f"{rot_polygon.index(left)}-{rot_polygon.index(right)}, {rot_polygon.index(bottom)}-{rot_polygon.index(top)}")
             horz, vert = right - left, top - bottom
             # solve (rot * a).y == (rot * b).y
             yield max(aspect * horz.x, vert.y), sinx, cosx
@@ -148,16 +147,19 @@ def cage_fit(points, aspect):
             # using substitution t = tan(rot / 2)
             q = aspect * horz.x - vert.y
             r = vert.x + aspect * horz.y
-            t = ((r**2 + q**2)**0.5 - r) / q if q != 0 else 0
+            t = ((r ** 2 + q ** 2) ** 0.5 - r) / q if q != 0 else 0
             t = -1 / t if abs(t) > 1 else t  # pick the positive solution
-            siny, cosy = 2 * t / (1 + t**2), (1 - t**2) / (1 + t**2)
+            siny, cosy = 2 * t / (1 + t ** 2), (1 - t ** 2) / (1 + t ** 2)
             rot = M.Matrix(((cosy, -siny), (siny, cosy)))
             for p in rot_polygon:
                 p[:] = rot @ p  # note: this also modifies left, right, bottom, top
-            #print(f"solve {aspect * (right - left).x} == {(top - bottom).y} with aspect = {aspect}")
-            if left.x < right.x and bottom.y < top.y and all(left.x <= p.x <= right.x and bottom.y <= p.y <= top.y for p in rot_polygon):
-                #print(f"yield {max(aspect * (right - left).x, (top - bottom).y)}")
-                yield max(aspect * (right - left).x, (top - bottom).y), sinx*cosy + cosx*siny, cosx*cosy - sinx*siny
+            # print(f"solve {aspect * (right - left).x} == {(top - bottom).y} with aspect = {aspect}")
+            if left.x < right.x and bottom.y < top.y and all(
+                    left.x <= p.x <= right.x and bottom.y <= p.y <= top.y for p in rot_polygon):
+                # print(f"yield {max(aspect * (right - left).x, (top - bottom).y)}")
+                yield max(aspect * (right - left).x,
+                          (top - bottom).y), sinx * cosy + cosx * siny, cosx * cosy - sinx * siny
+
     polygon = [points[i] for i in M.geometry.convex_hull_2d(points)]
     height, sinx, cosx = min(guesses(polygon))
     return atan2(sinx, cosx), height
@@ -195,7 +197,7 @@ class Unfolder:
         bm = bmesh.from_edit_mesh(ob.data)
         self.mesh = Mesh(bm, ob.matrix_world)
         self.mesh.check_correct()
-    
+
     def __del__(self):
         if not self.do_create_uvmap:
             self.mesh.delete_uvmap()
@@ -240,7 +242,7 @@ class Unfolder:
         ppm = properties.output_dpi * 100 / 2.54  # pixels per meter
 
         # after this call, all dimensions will be in meters
-        self.mesh.scale_islands(unit_scale/properties.scale)
+        self.mesh.scale_islands(unit_scale / properties.scale)
         if properties.do_create_stickers:
             self.mesh.generate_stickers(properties.sticker_width, properties.do_create_numbers)
         # elif properties.do_create_numbers:
@@ -263,10 +265,13 @@ class Unfolder:
             # TODO: do we really need all this recollection?
             recall = rd.engine, sce.cycles.bake_type, sce.cycles.samples, bk.use_selected_to_active, bk.margin, bk.cage_extrusion, bk.use_cage, bk.use_clear
             rd.engine = 'CYCLES'
-            recall_pass = {p: getattr(bk, f"use_pass_{p}") for p in ('ambient_occlusion', 'color', 'diffuse', 'direct', 'emit', 'glossy', 'indirect', 'subsurface', 'transmission')}
+            recall_pass = {p: getattr(bk, f"use_pass_{p}") for p in (
+            'ambient_occlusion', 'color', 'diffuse', 'direct', 'emit', 'glossy', 'indirect', 'subsurface',
+            'transmission')}
             for p in recall_pass:
                 setattr(bk, f"use_pass_{p}", (properties.output_type != 'TEXTURE'))
-            lookup = {'TEXTURE': 'DIFFUSE', 'AMBIENT_OCCLUSION': 'AO', 'RENDER': 'COMBINED', 'SELECTED_TO_ACTIVE': 'COMBINED'}
+            lookup = {'TEXTURE': 'DIFFUSE', 'AMBIENT_OCCLUSION': 'AO', 'RENDER': 'COMBINED',
+                      'SELECTED_TO_ACTIVE': 'COMBINED'}
             sce.cycles.bake_type = lookup[properties.output_type]
             bk.use_selected_to_active = (properties.output_type == 'SELECTED_TO_ACTIVE')
             bk.margin, bk.cage_extrusion, bk.use_cage, bk.use_clear = 1, 10, False, False
@@ -274,7 +279,7 @@ class Unfolder:
                 bk.use_pass_direct, bk.use_pass_indirect, bk.use_pass_color = False, False, True
                 sce.cycles.samples = 1
             else:
-                sce.cycles.samples = properties.bake_samples                
+                sce.cycles.samples = properties.bake_samples
             if sce.cycles.bake_type == 'COMBINED':
                 bk.use_pass_direct, bk.use_pass_indirect = True, True
                 bk.use_pass_diffuse, bk.use_pass_glossy, bk.use_pass_transmission, bk.use_pass_subsurface, bk.use_pass_ambient_occlusion, bk.use_pass_emit = True, False, False, True, True, True
@@ -291,7 +296,8 @@ class Unfolder:
             for p, v in recall_pass.items():
                 setattr(bk, f"use_pass_{p}", v)
 
-        exporter = Exporter(page_size, properties.style, properties.output_margin, (properties.output_type == 'NONE'), properties.angle_epsilon)
+        exporter = Exporter(page_size, properties.style, properties.output_margin, (properties.output_type == 'NONE'),
+                            properties.angle_epsilon)
         # exporter.do_create_stickers = properties.do_create_stickers
         exporter.text_size = properties.sticker_width
         exporter.write(self.mesh, filepath)
@@ -312,10 +318,10 @@ class Mesh:
             if edge.main_faces:
                 edge.calculate_angle()
         self.copy_freestyle_marks()
-    
+
     def delete_uvmap(self):
         self.data.loops.layers.uv.remove(self.looptex) if self.looptex else None
-    
+
     def copy_freestyle_marks(self):
         # NOTE: this is a workaround for NotImplementedError on bmesh.edges.layers.freestyle
         mesh = bpy.data.meshes.new("unfolder_temp")
@@ -323,7 +329,7 @@ class Mesh:
         for bmedge, edge in self.edges.items():
             edge.freestyle = mesh.edges[bmedge.index].use_freestyle_mark
         bpy.data.meshes.remove(mesh)
-    
+
     def mark_cuts(self):
         for bmedge, edge in self.edges.items():
             if edge.is_main_cut and not bmedge.is_boundary:
@@ -331,6 +337,7 @@ class Mesh:
 
     def check_correct(self, epsilon=1e-6):
         """Check for invalid geometry"""
+
         def is_twisted(face):
             if len(face.verts) <= 3:
                 return False
@@ -339,7 +346,7 @@ class Mesh:
             diameter = max((center - vertex.co).length for vertex in face.verts)
             threshold = 0.01 * diameter
             return any(abs(v.co.dot(face.normal) - plane_d) > threshold for v in face.verts)
-        
+
         null_edges = {e for e in self.edges.keys() if e.calc_length() < epsilon and e.link_faces}
         null_faces = {f for f in self.data.faces if f.calc_area() < epsilon}
         twisted_faces = {f for f in self.data.faces if is_twisted(f)}
@@ -348,7 +355,7 @@ class Mesh:
             return True
         if inverted_scale:
             raise UnfoldError("The object is flipped inside-out.\n"
-            "You can use Object -> Apply -> Scale to fix it. Export failed.")
+                              "You can use Object -> Apply -> Scale to fix it. Export failed.")
         disease = [("Remove Doubles", null_edges or null_faces), ("Triangulate", twisted_faces)]
         cure = " and ".join(s for s, k in disease if k)
         raise UnfoldError(
@@ -387,7 +394,8 @@ class Mesh:
 
         for edge in self.edges.values():
             # some edges did not know until now whether their angle is convex or concave
-            if edge.main_faces and (uvfaces[edge.main_faces[0].face].flipped or uvfaces[edge.main_faces[1].face].flipped):
+            if edge.main_faces and (
+                    uvfaces[edge.main_faces[0].face].flipped or uvfaces[edge.main_faces[1].face].flipped):
                 edge.calculate_angle()
             # ensure that the order of faces corresponds to the order of uvedges
             if edge.main_faces:
@@ -404,7 +412,8 @@ class Mesh:
             # if the normals are ambiguous, flip them so that there are more convex edges than concave ones
             if any(uvface.flipped for uvface in island.faces.values()):
                 island_edges = {self.edges[uvedge.edge] for uvedge in island.edges}
-                balance = sum((+1 if edge.angle > 0 else -1) for edge in island_edges if not edge.is_cut(uvedge.uvface.face))
+                balance = sum(
+                    (+1 if edge.angle > 0 else -1) for edge in island_edges if not edge.is_cut(uvedge.uvface.face))
                 if balance < 0:
                     island.is_inside_out = True
 
@@ -432,7 +441,8 @@ class Mesh:
 
             # resolve merged vertices with more boundaries crossing
             def direction_to_float(vector):
-                return (1 - vector.x/vector.length) if vector.y > 0 else (vector.x/vector.length - 1)
+                return (1 - vector.x / vector.length) if vector.y > 0 else (vector.x / vector.length - 1)
+
             for uvvertex, uvedges in conflicts.items():
                 def is_inwards(uvedge):
                     return uvedge.uvface.flipped == (uvedge.va is uvvertex)
@@ -453,6 +463,7 @@ class Mesh:
 
     def generate_stickers(self, default_width, do_create_numbers=True):
         """Add sticker faces where they are needed."""
+
         def uvedge_priority(uvedge):
             """Returns whether it is a good idea to stick something on this edge's face"""
             # TODO: it should take into account overlaps with faces and with other stickers
@@ -462,7 +473,7 @@ class Mesh:
         def add_sticker(uvedge, index, target_uvedge):
             uvedge.sticker = Sticker(uvedge, default_width, index, target_uvedge)
             uvedge.uvface.island.add_marker(uvedge.sticker)
-        
+
         def is_index_obvious(uvedge, target):
             if uvedge in (target.neighbor_left, target.neighbor_right):
                 return True
@@ -530,9 +541,9 @@ class Mesh:
             for marker in island.markers:
                 marker.rot = rot @ marker.rot
             bottom_left = M.Vector((min(v.x for v in points), min(v.y for v in points) - title_height))
-            #DEBUG
+            # DEBUG
             top_right = M.Vector((max(v.x for v in points), max(v.y for v in points) - title_height))
-            #print(f"fitted aspect: {(top_right.y - bottom_left.y) / (top_right.x - bottom_left.x)}")
+            # print(f"fitted aspect: {(top_right.y - bottom_left.y) / (top_right.x - bottom_left.x)}")
             for point in points:
                 point -= bottom_left
             island.bounding_box = M.Vector((max(v.x for v in points), max(v.y for v in points)))
@@ -564,7 +575,7 @@ class Mesh:
                                 occupied_cache.add((x, y))
                             # just a stupid heuristic to make subsequent searches faster
                             if i > 0:
-                                page_islands[1:i+1] = page_islands[:i]
+                                page_islands[1:i + 1] = page_islands[:i]
                                 page_islands[0] = obstacle
                             break
                     else:
@@ -601,7 +612,7 @@ class Mesh:
             for island in remaining_islands:
                 try_emplace(island, page.islands, stops_x, stops_y, occupied_cache)
                 # if overwhelmed with stops, drop a quarter of them
-                if len(stops_x)**2 > 4 * len(self.islands) + 100:
+                if len(stops_x) ** 2 > 4 * len(self.islands) + 100:
                     stops_x = drop_portion(stops_x, cage_size.x, 4)
                     stops_y = drop_portion(stops_y, cage_size.y, 4)
             remaining_islands = [island for island in remaining_islands if island not in page.islands]
@@ -642,10 +653,11 @@ class Mesh:
                 island.image_path = image_path
             image.user_clear()
             bpy.data.images.remove(image)
-    
+
     def bake(self, faces, image):
         if not self.looptex:
-            raise UnfoldError("The mesh has no UV Map slots left. Either delete a UV Map or export the net without textures.")
+            raise UnfoldError(
+                "The mesh has no UV Map slots left. Either delete a UV Map or export the net without textures.")
         ob = bpy.context.active_object
         me = ob.data
         # in Cycles, the image for baking is defined by the active Image Node
@@ -665,7 +677,8 @@ class Mesh:
         try:
             ob.update_from_editmode()
             me.uv_layers.active = me.uv_layers[self.looptex.name]
-            bpy.ops.object.bake(type=bake_type, margin=1, use_selected_to_active=sta, cage_extrusion=100, use_clear=False)
+            bpy.ops.object.bake(type=bake_type, margin=1, use_selected_to_active=sta, cage_extrusion=100,
+                                use_clear=False)
         except RuntimeError as e:
             raise UnfoldError(*e.args)
         finally:
@@ -678,8 +691,8 @@ class Mesh:
 class Edge:
     """Wrapper for BPy Edge"""
     __slots__ = ('data', 'va', 'vb', 'main_faces', 'uvedges',
-        'vector', 'angle',
-        'is_main_cut', 'force_cut', 'priority', 'freestyle')
+                 'vector', 'angle',
+                 'is_main_cut', 'force_cut', 'priority', 'freestyle')
 
     def __init__(self, edge):
         self.data = edge
@@ -702,8 +715,10 @@ class Edge:
         """Choose two main faces that might get connected in an island"""
         from itertools import combinations
         loops = self.data.link_loops
+
         def score(pair):
             return abs(pair[0].face.normal.dot(pair[1].face.normal))
+
         if len(loops) == 2:
             self.main_faces = list(loops)
         elif len(loops) > 2:
@@ -720,7 +735,7 @@ class Edge:
             self.angle = -3  # just a very sharp angle
         else:
             s = normal_a.cross(normal_b).dot(self.vector.normalized())
-            s = max(min(s, 1.0), -1.0) # deal with rounding errors
+            s = max(min(s, 1.0), -1.0)  # deal with rounding errors
             self.angle = asin(s)
             if loop_a.link_loop_next.vert != loop_b.vert or loop_b.link_loop_next.vert != loop_a.vert:
                 self.angle = abs(self.angle)
@@ -753,11 +768,11 @@ class Edge:
 class Island:
     """Part of the net to be exported"""
     __slots__ = ('mesh', 'faces', 'edges', 'vertices', 'fake_vertices', 'boundary', 'markers',
-        'pos', 'bounding_box',
-        'image_path', 'embedded_image',
-        'number', 'label', 'abbreviation', 'title',
-        'has_safe_geometry', 'is_inside_out',
-        'sticker_numbering')
+                 'pos', 'bounding_box',
+                 'image_path', 'embedded_image',
+                 'number', 'label', 'abbreviation', 'title',
+                 'has_safe_geometry', 'is_inside_out',
+                 'sticker_numbering')
 
     def __init__(self, mesh, face, matrix, normal_matrix):
         """Create an Island from a single Face"""
@@ -776,14 +791,14 @@ class Island:
         self.is_inside_out = False  # swaps concave <-> convex edges
         self.has_safe_geometry = True
         self.sticker_numbering = 0
-        
+
         uvface = UVFace(face, self, matrix, normal_matrix)
         self.vertices.update(uvface.vertices)
         self.edges.update(uvface.edges)
         self.faces[face] = uvface
         # UVEdges on the boundary
         self.boundary = list(self.edges.values())
-    
+
     def add_marker(self, marker):
         self.fake_vertices.extend(marker.bounds)
         self.markers.append(marker)
@@ -813,6 +828,7 @@ class Island:
         scale_x, scale_y = 1 / self.bounding_box.x, 1 / self.bounding_box.y
         for loop, uvvertex in self.vertices.items():
             loop[tex].uv = uvvertex.co.x * scale_x, uvvertex.co.y * scale_y
+
 
 def join(uvedge_a, uvedge_b, size_limit=None, epsilon=1e-6):
     """
@@ -868,6 +884,7 @@ def join(uvedge_a, uvedge_b, size_limit=None, epsilon=1e-6):
 
     class QuickSweepline:
         """Efficient sweepline based on binary search, checking neighbors only"""
+
         def __init__(self):
             self.children = list()
 
@@ -886,11 +903,12 @@ def join(uvedge_a, uvedge_b, size_limit=None, epsilon=1e-6):
             self.children.pop(index)
             if index > 0 and index < len(self.children):
                 # check for intersection
-                if cmp(self.children[index], self.children[index-1]):
+                if cmp(self.children[index], self.children[index - 1]):
                     raise GeometryError
 
     class BruteSweepline:
         """Safe sweepline which checks all its members pairwise"""
+
         def __init__(self):
             self.children = set()
 
@@ -927,6 +945,7 @@ def join(uvedge_a, uvedge_b, size_limit=None, epsilon=1e-6):
         def slope(uvedge):
             vec = (uvedge.vb.co - uvedge.va.co) if uvedge.va.tup == position else (uvedge.va.co - uvedge.vb.co)
             return (vec.y / vec.length + 1) if ((vec.x, vec.y) > (0, 0)) else (-1 - vec.y / vec.length)
+
         return slope
 
     island_a, island_b = (e.uvface.island for e in (uvedge_a, uvedge_b))
@@ -957,9 +976,10 @@ def join(uvedge_a, uvedge_b, size_limit=None, epsilon=1e-6):
         left, right, bottom, top = (fn(co[i] for co in points) for i in (0, 1) for fn in (min, max))
         bbox_width = right - left
         bbox_height = top - bottom
-        if min(bbox_width, bbox_height)**2 > size_limit.x**2 + size_limit.y**2:
+        if min(bbox_width, bbox_height) ** 2 > size_limit.x ** 2 + size_limit.y ** 2:
             return False
-        if (bbox_width > size_limit.x or bbox_height > size_limit.y) and (bbox_height > size_limit.x or bbox_width > size_limit.y):
+        if (bbox_width > size_limit.x or bbox_height > size_limit.y) and (
+                bbox_height > size_limit.x or bbox_width > size_limit.y):
             _, height = cage_fit(points, size_limit.y / size_limit.x)
             if height > size_limit.y:
                 return False
@@ -1011,7 +1031,8 @@ def join(uvedge_a, uvedge_b, size_limit=None, epsilon=1e-6):
         for uvedge in island_b.boundary if uvedge not in merged_uvedges]
     # TODO: if is_merged_mine, it might make sense to create a similar list from island_a.boundary as well
 
-    incidence = {vertex.tup for vertex in phantoms.values()}.intersection(vertex.tup for vertex in island_a.vertices.values())
+    incidence = {vertex.tup for vertex in phantoms.values()}.intersection(
+        vertex.tup for vertex in island_a.vertices.values())
     incidence = {position: list() for position in incidence}  # from now on, 'incidence' is a dict
     for uvedge in chain(boundary_other, island_a.boundary):
         if uvedge.va.co == uvedge.vb.co:
@@ -1027,7 +1048,8 @@ def join(uvedge_a, uvedge_b, size_limit=None, epsilon=1e-6):
         for right, left in pairs(segments):
             is_left_ccw = left.is_uvface_upwards() ^ (left.max.tup == position)
             is_right_ccw = right.is_uvface_upwards() ^ (right.max.tup == position)
-            if is_right_ccw and not is_left_ccw and type(right) is not type(left) and right not in merged_uvedges and left not in merged_uvedges:
+            if is_right_ccw and not is_left_ccw and type(right) is not type(
+                    left) and right not in merged_uvedges and left not in merged_uvedges:
                 return False
             if (not is_right_ccw and right not in merged_uvedges) ^ (is_left_ccw and left not in merged_uvedges):
                 return False
@@ -1106,6 +1128,7 @@ class UVVertex:
 
     def __next__(self):
         raise StopIteration()
+
     def __iter__(self):
         return self
 
@@ -1115,8 +1138,8 @@ class UVEdge:
     # Every UVEdge is attached to only one UVFace
     # UVEdges are doubled as needed because they both have to point clockwise around their faces
     __slots__ = ('va', 'vb', 'uvface', 'loop',
-        'min', 'max', 'bottom', 'top',
-        'neighbor_left', 'neighbor_right', 'sticker')
+                 'min', 'max', 'bottom', 'top',
+                 'neighbor_left', 'neighbor_right', 'sticker')
 
     def __init__(self, vertex1: UVVertex, vertex2: UVVertex, uvface, loop):
         self.va = vertex1
@@ -1167,7 +1190,8 @@ class UVFace:
 
         flatten = z_up_matrix(normal_matrix @ face.normal) @ matrix
         self.vertices = {loop: UVVertex(flatten @ loop.vert.co) for loop in face.loops}
-        self.edges = {loop: UVEdge(self.vertices[loop], self.vertices[loop.link_loop_next], self, loop) for loop in face.loops}
+        self.edges = {loop: UVEdge(self.vertices[loop], self.vertices[loop.link_loop_next], self, loop) for loop in
+                      face.loops}
 
 
 class Arrow:
@@ -1183,7 +1207,8 @@ class Arrow:
         cos, sin = tangent
         self.rot = M.Matrix(((cos, -sin), (sin, cos)))
         normal = M.Vector((sin, -cos))
-        self.bounds = [self.center, self.center + (1.2 * normal + tangent) * size, self.center + (1.2 * normal - tangent) * size]
+        self.bounds = [self.center, self.center + (1.2 * normal + tangent) * size,
+                       self.center + (1.2 * normal - tangent) * size]
 
 
 # /////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1193,6 +1218,7 @@ logger = logging.getLogger(__name__)
 ns = {"u": "http://www.w3.org/2000/svg"}
 
 vertices = []
+
 
 def load_svg(path):
     parser = etree.XMLParser(remove_comments=True, recover=True)
@@ -1224,14 +1250,13 @@ def svg2uv(path):
         polyline_vectors += vectorize_polylines(points)
     for v in polyline_vectors:
         makeUVVertices(v)
-        
+
     # Make Path vectors
     path_vectors = []
     for p in paths:
         path = p.attrib['d']
         path_vectors += vectorize_paths(path)
     return vertices
-
 
 
 def vectorize_paths(path):
@@ -1266,15 +1291,14 @@ def vectorize_polylines(points):
 
 
 def makeUVVertices(v):
-    v1 = UVVertex(M.Vector((v["x1"], v["y1"])) * 0.00001) #scaling down to avoid overflow
+    v1 = UVVertex(M.Vector((v["x1"], v["y1"])) * 0.00001)  # scaling down to avoid overflow
 
     vertices.append(v1)
 
     # print("this line goes from point [%d, %d] to point [%d, %d]" % (v["x1"], v["y1"], v["x2"], v["y2"]))
 
 
-
-#//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+# //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class Sticker:
     """Mark in the document: sticker tab"""
     __slots__ = ('bounds', 'center', 'rot', 'text', 'width', 'vertices')
@@ -1289,7 +1313,7 @@ class Sticker:
 
         # angle a is at vertex uvedge.va, b is at uvedge.vb
         cos_a = cos_b = 0.5
-        sin_a = sin_b = 0.75**0.5
+        sin_a = sin_b = 0.75 ** 0.5
         # len_a is length of the side adjacent to vertex a, len_b likewise
         len_a = len_b = sticker_width / sin_a
 
@@ -1306,19 +1330,21 @@ class Sticker:
             other_edge_neighbor_a = other_face_neighbor_left.vb.co - other.vb.co
             other_edge_neighbor_b = other_face_neighbor_right.va.co - other.va.co
             # Adjacent angles in the face
-            cos_a = max(cos_a, -other_edge.dot(other_edge_neighbor_a) / (other_edge.length*other_edge_neighbor_a.length))
-            cos_b = max(cos_b, other_edge.dot(other_edge_neighbor_b) / (other_edge.length*other_edge_neighbor_b.length))
+            cos_a = max(cos_a,
+                        -other_edge.dot(other_edge_neighbor_a) / (other_edge.length * other_edge_neighbor_a.length))
+            cos_b = max(cos_b,
+                        other_edge.dot(other_edge_neighbor_b) / (other_edge.length * other_edge_neighbor_b.length))
         except AttributeError:  # neighbor data may be missing for edges with 3+ faces
             pass
         except ZeroDivisionError:
             pass
 
         # Calculate the lengths of the glue tab edges using the possibly smaller angles
-        sin_a = abs(1 - cos_a**2)**0.5
+        sin_a = abs(1 - cos_a ** 2) ** 0.5
         len_b = min(len_a, (edge.length * sin_a) / (sin_a * cos_b + sin_b * cos_a))
-        len_a = 0 if sin_a == 0 else min(sticker_width / sin_a, (edge.length - len_b*cos_b) / cos_a)
+        len_a = 0 if sin_a == 0 else min(sticker_width / sin_a, (edge.length - len_b * cos_b) / cos_a)
 
-        sin_b = abs(1 - cos_b**2)**0.5
+        sin_b = abs(1 - cos_b ** 2) ** 0.5
         len_a = min(len_a, (edge.length * sin_b) / (sin_a * cos_b + sin_b * cos_a))
         len_b = 0 if sin_b == 0 else min(sticker_width / sin_b, (edge.length - len_a * cos_a) / cos_b)
 
@@ -1326,32 +1352,39 @@ class Sticker:
         cos, sin = tangent
         self.rot = M.Matrix(((cos, -sin), (sin, cos)))
 
-        self.width = sticker_width * 0.9
+        self.width = sticker_width 
 
-        tab = svg2uv("C:\Program Files\\Blender Foundation\\Blender 2.81\\2.81\\scripts\\addons\\Stickers\\tooth-sawtooth.svg")
+        num_tabs = floor(edge.length/self.width)
+
+        tab = svg2uv(
+            "C:\Program Files\\Blender Foundation\\Blender 2.81\\2.81\\scripts\\addons\\Stickers\\tooth-sawtooth.svg")
 
         tab_verts = []
         tab_verts_co = []
-        for i in range (len(tab)):
-            vi = UVVertex((second_vertex.co + self.rot@tab[i].co)+ self.rot @ M.Vector((0, self.width * 0.2)))
-            tab_verts.insert(i, vi)
-            tab_verts_co.insert(i, vi.co)
+
+        for n in range(num_tabs):
+            for i in range(len(tab)):
+                vi = UVVertex((second_vertex.co + self.rot @ tab[i].co) +  self.rot @ M.Vector((self.width * n, 0)))
+                tab_verts.insert(len(tab_verts), vi)
+                tab_verts_co.insert(len(tab_verts), vi.co)
+
+        #OPTIONAL ADJUSTMENT: +  self.rot @ M.Vector((0, self.width * 0.2))
+
 
         self.vertices = tab_verts
-        self.vertices.insert(len(tab), first_vertex)
+        self.vertices.insert(len(tab_verts), first_vertex)
         self.vertices.insert(0, second_vertex)
 
         print(tab_verts)
-
-
 
         if index and uvedge.uvface.island is not other.uvface.island:
             self.text = "{}:{}".format(other.uvface.island.abbreviation, index)
         else:
             self.text = index
-        self.center = (uvedge.va.co + uvedge.vb.co) / 2 + self.rot @ M.Vector((0, self.width * 0.2))
+        self.center = (uvedge.va.co + uvedge.vb.co) / 2
         self.bounds = tab_verts_co
-        self.bounds.insert(len(tab), self.center)
+        self.bounds.insert(len(tab_verts), self.center)
+
 
 class NumberAlone:
     """Mark in the document: numbering inside the island denoting edges to be sticked"""
@@ -1415,7 +1448,7 @@ class SVG:
             return " ".join("{:.6f}".format(cell) for column in matrix for cell in column)
 
         def path_convert(string, relto=os_path.dirname(filename)):
-            assert(os_path)  # check the module was imported
+            assert (os_path)  # check the module was imported
             string = os_path.relpath(string, relto)
             if os_path.sep != '/':
                 string = string.replace(os_path.sep, '/')
@@ -1423,32 +1456,33 @@ class SVG:
 
         styleargs = {
             name: format_color(getattr(self.style, name)) for name in (
-                "outer_color", "outbg_color", "convex_color", "concave_color", "freestyle_color",
-                "inbg_color", "sticker_fill", "text_color")}
+            "outer_color", "outbg_color", "convex_color", "concave_color", "freestyle_color",
+            "inbg_color", "sticker_fill", "text_color")}
         styleargs.update({
             name: format_style[getattr(self.style, name)] for name in
             ("outer_style", "convex_style", "concave_style", "freestyle_style")})
         styleargs.update({
             name: getattr(self.style, attr)[3] for name, attr in (
-                ("outer_alpha", "outer_color"), ("outbg_alpha", "outbg_color"),
-                ("convex_alpha", "convex_color"), ("concave_alpha", "concave_color"),
-                ("freestyle_alpha", "freestyle_color"),
-                ("inbg_alpha", "inbg_color"), ("sticker_alpha", "sticker_fill"),
-                ("text_alpha", "text_color"))})
+            ("outer_alpha", "outer_color"), ("outbg_alpha", "outbg_color"),
+            ("convex_alpha", "convex_color"), ("concave_alpha", "concave_color"),
+            ("freestyle_alpha", "freestyle_color"),
+            ("inbg_alpha", "inbg_color"), ("sticker_alpha", "sticker_fill"),
+            ("text_alpha", "text_color"))})
         styleargs.update({
             name: getattr(self.style, name) * self.style.line_width * 1000 for name in
             ("outer_width", "convex_width", "concave_width", "freestyle_width", "outbg_width", "inbg_width")})
         for num, page in enumerate(mesh.pages):
-            page_filename = "{}_{}.svg".format(filename[:filename.rfind(".svg")], page.name) if len(mesh.pages) > 1 else filename
+            page_filename = "{}_{}.svg".format(filename[:filename.rfind(".svg")], page.name) if len(
+                mesh.pages) > 1 else filename
             with open(page_filename, 'w') as f:
-                print(self.svg_base.format(width=self.page_size.x*1000, height=self.page_size.y*1000), file=f)
+                print(self.svg_base.format(width=self.page_size.x * 1000, height=self.page_size.y * 1000), file=f)
                 print(self.css_base.format(**styleargs), file=f)
                 if page.image_path:
                     print(
                         self.image_linked_tag.format(
-                            pos="{0:.6f} {0:.6f}".format(self.margin*1000),
-                            width=(self.page_size.x - 2 * self.margin)*1000,
-                            height=(self.page_size.y - 2 * self.margin)*1000,
+                            pos="{0:.6f} {0:.6f}".format(self.margin * 1000),
+                            width=(self.page_size.x - 2 * self.margin) * 1000,
+                            height=(self.page_size.y - 2 * self.margin) * 1000,
                             path=path_convert(page.image_path)),
                         file=f)
                 if len(page.islands) > 1:
@@ -1460,16 +1494,16 @@ class SVG:
                         print(
                             self.image_linked_tag.format(
                                 pos=self.format_vertex(island.pos + M.Vector((0, island.bounding_box.y))),
-                                width=island.bounding_box.x*1000,
-                                height=island.bounding_box.y*1000,
+                                width=island.bounding_box.x * 1000,
+                                height=island.bounding_box.y * 1000,
                                 path=path_convert(island.image_path)),
                             file=f)
                     elif island.embedded_image:
                         print(
                             self.image_embedded_tag.format(
                                 pos=self.format_vertex(island.pos + M.Vector((0, island.bounding_box.y))),
-                                width=island.bounding_box.x*1000,
-                                height=island.bounding_box.y*1000,
+                                width=island.bounding_box.x * 1000,
+                                height=island.bounding_box.y * 1000,
                                 path=island.image_path),
                             island.embedded_image, "'/>",
                             file=f, sep="")
@@ -1477,12 +1511,14 @@ class SVG:
                         print(
                             self.text_tag.format(
                                 size=1000 * self.text_size,
-                                x=1000 * (island.bounding_box.x*0.5 + island.pos.x + self.margin),
+                                x=1000 * (island.bounding_box.x * 0.5 + island.pos.x + self.margin),
                                 y=1000 * (self.page_size.y - island.pos.y - self.margin - 0.2 * self.text_size),
                                 label=island.title),
                             file=f)
 
-                    data_markers, data_stickerfill, data_outer, data_convex, data_concave, data_freestyle = (list() for i in range(6))
+                    data_markers, data_stickerfill, data_outer, data_convex, data_concave, data_freestyle = (list() for
+                                                                                                             i in
+                                                                                                             range(6))
                     for marker in island.markers:
                         if isinstance(marker, Sticker):
                             data_stickerfill.append("M {} Z".format(
@@ -1500,7 +1536,7 @@ class SVG:
                                 index=marker.text,
                                 arrow_pos=self.format_vertex(marker.center, island.pos),
                                 scale=size,
-                                pos=self.format_vertex(position, island.pos - marker.size*M.Vector((0, 0.4))),
+                                pos=self.format_vertex(position, island.pos - marker.size * M.Vector((0, 0.4))),
                                 mat=format_matrix(size * marker.rot)))
                         elif isinstance(marker, NumberAlone):
                             data_markers.append(self.text_transformed_tag.format(
@@ -1517,7 +1553,8 @@ class SVG:
                         uvedge = outer_edges.pop()
                         while 1:
                             if uvedge.sticker:
-                                data_loop.extend(self.format_vertex(vertex.co, island.pos) for vertex in uvedge.sticker.vertices[1:])
+                                data_loop.extend(
+                                    self.format_vertex(vertex.co, island.pos) for vertex in uvedge.sticker.vertices[1:])
                             else:
                                 vertex = uvedge.vb if uvedge.uvface.flipped else uvedge.va
                                 data_loop.append(self.format_vertex(vertex.co, island.pos))
@@ -1534,7 +1571,8 @@ class SVG:
                         if edge.is_cut(uvedge.uvface.face) and not uvedge.sticker:
                             continue
                         data_uvedge = "M {}".format(
-                            line_through(self.format_vertex(vertex.co, island.pos) for vertex in (uvedge.va, uvedge.vb)))
+                            line_through(
+                                self.format_vertex(vertex.co, island.pos) for vertex in (uvedge.va, uvedge.vb)))
                         if edge.freestyle:
                             data_freestyle.append(data_uvedge)
                         # each uvedge is in two opposite-oriented variants; we want to add each only once
@@ -1573,7 +1611,7 @@ class SVG:
     text_tag = "<text transform='translate({x} {y})' style='font-size:{size:.2f}'><tspan>{label}</tspan></text>"
     text_transformed_tag = "<text transform='matrix({mat} {pos})' style='font-size:{size:.2f}'><tspan>{label}</tspan></text>"
     arrow_marker_tag = "<g><path transform='matrix({mat} {arrow_pos})' class='arrow' d='M 0 0 L 1 1 L 0 0.25 L -1 1 Z'/>" \
-        "<text transform='translate({pos})' style='font-size:{scale:.2f}'><tspan>{index}</tspan></text></g>"
+                       "<text transform='translate({pos})' style='font-size:{scale:.2f}'><tspan>{index}</tspan></text></g>"
 
     svg_base = """<?xml version='1.0' encoding='UTF-8' standalone='no'?>
     <svg xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' version='1.1'
@@ -1649,9 +1687,12 @@ class PDF:
 
     mm_to_pt = 72 / 25.4
     character_width_packed = {
-        191: "'", 222: 'ijl\x82\x91\x92', 278: '|¦\x00\x01\x02\x03\x04\x05\x06\x07\x08\t\n\x0b\x0c\r\x0e\x0f\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f !,./:;I[\\]ft\xa0·ÌÍÎÏìíîï',
-        333: '()-`r\x84\x88\x8b\x93\x94\x98\x9b¡¨\xad¯²³´¸¹{}', 350: '\x7f\x81\x8d\x8f\x90\x95\x9d', 365: '"ºª*°', 469: '^', 500: 'Jcksvxyz\x9a\x9eçýÿ', 584: '¶+<=>~¬±×÷', 611: 'FTZ\x8e¿ßø',
-        667: '&ABEKPSVXY\x8a\x9fÀÁÂÃÄÅÈÉÊËÝÞ', 722: 'CDHNRUwÇÐÑÙÚÛÜ', 737: '©®', 778: 'GOQÒÓÔÕÖØ', 833: 'Mm¼½¾', 889: '%æ', 944: 'W\x9c', 1000: '\x85\x89\x8c\x97\x99Æ', 1015: '@', }
+        191: "'", 222: 'ijl\x82\x91\x92',
+        278: '|¦\x00\x01\x02\x03\x04\x05\x06\x07\x08\t\n\x0b\x0c\r\x0e\x0f\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f !,./:;I[\\]ft\xa0·ÌÍÎÏìíîï',
+        333: '()-`r\x84\x88\x8b\x93\x94\x98\x9b¡¨\xad¯²³´¸¹{}', 350: '\x7f\x81\x8d\x8f\x90\x95\x9d', 365: '"ºª*°',
+        469: '^', 500: 'Jcksvxyz\x9a\x9eçýÿ', 584: '¶+<=>~¬±×÷', 611: 'FTZ\x8e¿ßø',
+        667: '&ABEKPSVXY\x8a\x9fÀÁÂÃÄÅÈÉÊËÝÞ', 722: 'CDHNRUwÇÐÑÙÚÛÜ', 737: '©®', 778: 'GOQÒÓÔÕÖØ', 833: 'Mm¼½¾',
+        889: '%æ', 944: 'W\x9c', 1000: '\x85\x89\x8c\x97\x99Æ', 1015: '@', }
     character_width = {c: value for (value, chars) in character_width_packed.items() for c in chars}
 
     def __init__(self, page_size: M.Vector, style, margin, pure_net=True, angle_epsilon=0.01):
@@ -1675,10 +1716,12 @@ class PDF:
 
     def write(self, mesh, filename):
         def format_dict(obj, refs=tuple()):
-            return "<< " + "".join("/{} {}\n".format(key, format_value(value, refs)) for (key, value) in obj.items()) + ">>"
+            return "<< " + "".join(
+                "/{} {}\n".format(key, format_value(value, refs)) for (key, value) in obj.items()) + ">>"
 
         def line_through(seq):
-            return "".join("{0.x:.6f} {0.y:.6f} {1} ".format(1000*v.co, c) for (v, c) in zip(seq, chain("m", repeat("l"))))
+            return "".join(
+                "{0.x:.6f} {0.y:.6f} {1} ".format(1000 * v.co, c) for (v, c) in zip(seq, chain("m", repeat("l"))))
 
         def format_value(value, refs=tuple()):
             if value in refs:
@@ -1755,7 +1798,7 @@ class PDF:
             commands = ["{0:.6f} 0 0 {0:.6f} 0 0 cm".format(self.mm_to_pt)]
             resources = {"Font": {"F1": font}, "ExtGState": styles, "XObject": dict()}
             for island in page.islands:
-                commands.append("q 1 0 0 1 {0.x:.6f} {0.y:.6f} cm".format(1000*(self.margin + island.pos)))
+                commands.append("q 1 0 0 1 {0.x:.6f} {0.y:.6f} cm".format(1000 * (self.margin + island.pos)))
                 if island.embedded_image:
                     identifier = "Im{}".format(len(resources["XObject"]) + 1)
                     commands.append(self.command_image.format(1000 * island.bounding_box, identifier))
@@ -1764,22 +1807,23 @@ class PDF:
 
                 if island.title:
                     commands.append(self.command_label.format(
-                        size=1000*self.text_size,
+                        size=1000 * self.text_size,
                         x=500 * (island.bounding_box.x - self.text_width(island.title)),
                         y=1000 * 0.2 * self.text_size,
                         label=island.title))
 
-                data_markers, data_stickerfill, data_outer, data_convex, data_concave, data_freestyle = (list() for i in range(6))
+                data_markers, data_stickerfill, data_outer, data_convex, data_concave, data_freestyle = (list() for i in
+                                                                                                         range(6))
                 for marker in island.markers:
                     if isinstance(marker, Sticker):
                         data_stickerfill.append(line_through(marker.vertices) + "f")
                         if marker.text:
                             data_markers.append(self.command_sticker.format(
                                 label=marker.text,
-                                pos=1000*marker.center,
+                                pos=1000 * marker.center,
                                 mat=marker.rot,
                                 align=-500 * self.text_width(marker.text, marker.width),
-                                size=1000*marker.width))
+                                size=1000 * marker.width))
                     elif isinstance(marker, Arrow):
                         size = 1000 * marker.size
                         position = 1000 * (marker.center + marker.size * marker.rot @ M.Vector((0, -0.9)))
@@ -1792,9 +1836,9 @@ class PDF:
                     elif isinstance(marker, NumberAlone):
                         data_markers.append(self.command_number.format(
                             label=marker.text,
-                            pos=1000*marker.center,
+                            pos=1000 * marker.center,
                             mat=marker.rot,
-                            size=1000*marker.size))
+                            size=1000 * marker.size))
 
                 outer_edges = set(island.boundary)
                 while outer_edges:
@@ -1833,7 +1877,8 @@ class PDF:
                     commands.append("/Gsticker gs {0[0]:.3f} {0[1]:.3f} {0[2]:.3f} rg".format(self.style.sticker_fill))
                     commands.extend(data_stickerfill)
                 if data_freestyle:
-                    commands.append("/Gfreestyle gs {0[0]:.3f} {0[1]:.3f} {0[2]:.3f} RG".format(self.style.freestyle_color))
+                    commands.append(
+                        "/Gfreestyle gs {0[0]:.3f} {0[1]:.3f} {0[2]:.3f} RG".format(self.style.freestyle_color))
                     commands.extend(data_freestyle)
                 if (data_convex or data_concave) and not self.pure_net and self.style.use_inbg:
                     commands.append("/Ginbg gs {0[0]:.3f} {0[1]:.3f} {0[2]:.3f} RG".format(self.style.inbg_color))
@@ -2023,7 +2068,8 @@ class PaperModelStyle(bpy.types.PropertyGroup):
         name="Outer Lines Drawing Style", description="Drawing style of net outline",
         default='SOLID', items=line_styles)
     line_width: bpy.props.FloatProperty(
-        name="Base Lines Thickness", description="Base thickness of net lines, each actual value is a multiple of this length",
+        name="Base Lines Thickness",
+        description="Base thickness of net lines, each actual value is a multiple of this length",
         default=1e-4, min=0, soft_max=5e-3, precision=5, step=1e-2, subtype="UNSIGNED", unit="LENGTH")
     outer_width: bpy.props.FloatProperty(
         name="Outer Lines Thickness", description="Relative thickness of net outline",
@@ -2081,6 +2127,8 @@ class PaperModelStyle(bpy.types.PropertyGroup):
     text_color: bpy.props.FloatVectorProperty(
         name="Text Color", description="Color of all text used in the document",
         default=(0.0, 0.0, 0.0, 1.0), min=0, max=1, subtype='COLOR', size=4)
+
+
 bpy.utils.register_class(PaperModelStyle)
 
 
@@ -2128,7 +2176,7 @@ class ExportPaperModel(bpy.types.Operator):
         default=0.005, soft_min=0, soft_max=0.05, step=0.1, subtype="UNSIGNED", unit="LENGTH")
     angle_epsilon: bpy.props.FloatProperty(
         name="Hidden Edge Angle", description="Folds with angle below this limit will not be drawn",
-        default=pi/360, min=0, soft_max=pi/4, step=0.01, subtype="ANGLE", unit="ROTATION")
+        default=pi / 360, min=0, soft_max=pi / 4, step=0.01, subtype="ANGLE", unit="ROTATION")
     output_dpi: bpy.props.FloatProperty(
         name="Resolution (DPI)", description="Resolution of images in pixels per inch",
         default=90, min=1, soft_min=30, soft_max=600, subtype="UNSIGNED")
@@ -2155,7 +2203,8 @@ class ExportPaperModel(bpy.types.Operator):
         name="Create UVMap", description="Create a new UV Map showing the islands and page layout",
         default=False, options={'SKIP_SAVE'})
     ui_expanded_document: bpy.props.BoolProperty(
-        name="Show Document Settings Expanded", description="Shows the box 'Document Settings' expanded in user interface",
+        name="Show Document Settings Expanded",
+        description="Shows the box 'Document Settings' expanded in user interface",
         default=True, options={'SKIP_SAVE'})
     ui_expanded_style: bpy.props.BoolProperty(
         name="Show Style Settings Expanded", description="Shows the box 'Colors and Style' expanded in user interface",
@@ -2167,7 +2216,7 @@ class ExportPaperModel(bpy.types.Operator):
     @classmethod
     def poll(cls, context):
         return context.active_object and context.active_object.type == 'MESH'
-    
+
     def prepare(self, context):
         sce = context.scene
         self.recall_mode = context.object.mode
@@ -2176,10 +2225,11 @@ class ExportPaperModel(bpy.types.Operator):
         self.object = context.active_object
         self.unfolder = Unfolder(self.object)
         cage_size = M.Vector((sce.paper_model.output_size_x, sce.paper_model.output_size_y))
-        self.unfolder.prepare(cage_size, scale=sce.unit_settings.scale_length/self.scale, limit_by_page=sce.paper_model.limit_by_page)
+        self.unfolder.prepare(cage_size, scale=sce.unit_settings.scale_length / self.scale,
+                              limit_by_page=sce.paper_model.limit_by_page)
         if self.scale == 1:
             self.scale = ceil(self.get_scale_ratio(sce))
-    
+
     def recall(self):
         if self.unfolder:
             del self.unfolder
@@ -2218,7 +2268,7 @@ class ExportPaperModel(bpy.types.Operator):
         margin = self.output_margin + self.sticker_width
         if min(self.output_size_x, self.output_size_y) <= 2 * margin:
             return False
-        output_inner_size = M.Vector((self.output_size_x - 2*margin, self.output_size_y - 2*margin))
+        output_inner_size = M.Vector((self.output_size_x - 2 * margin, self.output_size_y - 2 * margin))
         ratio = self.unfolder.mesh.largest_island_ratio(output_inner_size)
         return ratio * sce.unit_settings.scale_length / self.scale
 
@@ -2342,7 +2392,7 @@ class SelectIsland(bpy.types.Operator):
     bl_idname = "mesh.select_paper_island"
     bl_label = "Select Island"
     bl_description = "Select an island of the paper model net"
-    
+
     operation: bpy.props.EnumProperty(
         name="Operation", description="Operation with the current selection",
         default='ADD', items=[
@@ -2509,6 +2559,7 @@ def label_changed(self, context):
 
 def island_item_changed(self, context):
     """The labelling of an island was changed"""
+
     def increment(abbrev, collisions):
         letters = "ABCDEFGHIJKLMNPQRSTUVWXYZ123456789"
         while abbrev in collisions:
