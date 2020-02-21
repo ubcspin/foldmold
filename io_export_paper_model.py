@@ -498,7 +498,9 @@ class Mesh:
                         if is_upsidedown_wrong(index):
                             index += "."
                         # target_island.add_marker(Arrow(target, default_width, index))
+
                         target.sticker = Sticker(target, default_width, index, uvedge, True)
+
                         target_island.add_marker(target.sticker)
                         break
                 add_sticker(source, index, target)
@@ -1327,6 +1329,7 @@ class Gap:
             # get bounding box of geometry
             return  0.0045
 
+
         self.geometry = load_geometry()
         self.width = getWidth()
         print(self.geometry)
@@ -1334,6 +1337,7 @@ class Gap:
 class SawtoothPattern:
     __slots__ = ("tileset", "width")
     def __init__(self, isreversed):
+
         def getWidth(tileset):
             width = 0
             for tile in tileset:
@@ -1344,6 +1348,7 @@ class SawtoothPattern:
             self.tileset = [Tooth(), Gap()]
         else:
             self.tileset = [Gap(), Tooth()]
+
         self.width = getWidth(self.tileset)
 
 
@@ -1358,11 +1363,13 @@ class SawtoothPattern:
 class SawtoothSticker:
     __slots__ = ('bounds', 'center', 'rot', 'text', 'width', 'vertices', "pattern", "geometry", "geometry_co")
 
+
     def __init__(self, uvedge, default_width, index, other: UVEdge, isreversed):
         first_vertex, second_vertex = (uvedge.va, uvedge.vb) if not uvedge.uvface.flipped else (uvedge.vb, uvedge.va)
         edge = first_vertex.co - second_vertex.co
         self.width = edge.length
         self.pattern = SawtoothPattern(isreversed)
+
         midsection_count = floor(self.width / self.pattern.width)
         midsection_width = self.pattern.width * midsection_count
         offset_left = (self.width - midsection_width) / 2
@@ -1381,6 +1388,7 @@ class SawtoothSticker:
                 tab_verts_co.insert(len(tab_verts), vi.co)
 
         print(offset_left)
+
         return tab_verts, tab_verts_co
 
 
@@ -1459,6 +1467,7 @@ class Sticker:
             self.text = "{}:{}".format(other.uvface.island.abbreviation, index)
         else:
             self.text = index
+
 
         self.center = (uvedge.va.co + uvedge.vb.co) / 2
         self.bounds = tab_verts_co
