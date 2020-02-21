@@ -498,7 +498,9 @@ class Mesh:
                         if is_upsidedown_wrong(index):
                             index += "."
                         # target_island.add_marker(Arrow(target, default_width, index))
-                        target.sticker = Sticker(target, default_width, index, uvedge)
+
+                        target.sticker = Sticker(target, default_width, index, uvedge, True)
+
                         target_island.add_marker(target.sticker)
                         break
                 add_sticker(source, index, target)
@@ -1325,7 +1327,8 @@ class Gap:
 
         def getWidth():
             # get bounding box of geometry
-            return  0.005
+            return  0.0045
+
 
         self.geometry = load_geometry()
         self.width = getWidth()
@@ -1333,14 +1336,19 @@ class Gap:
 
 class SawtoothPattern:
     __slots__ = ("tileset", "width")
-    def __init__(self):
+    def __init__(self, isreversed):
+
         def getWidth(tileset):
             width = 0
             for tile in tileset:
                 width += tile.width
             return width
 
-        self.tileset = [Gap(), Tooth()]
+        if(isreversed):
+            self.tileset = [Tooth(), Gap()]
+        else:
+            self.tileset = [Gap(), Tooth()]
+
         self.width = getWidth(self.tileset)
 
 
@@ -1355,11 +1363,13 @@ class SawtoothPattern:
 class SawtoothSticker:
     __slots__ = ('bounds', 'center', 'rot', 'text', 'width', 'vertices', "pattern", "geometry", "geometry_co")
 
-    def __init__(self, uvedge, default_width, index, other: UVEdge):
+
+    def __init__(self, uvedge, default_width, index, other: UVEdge, isreversed):
         first_vertex, second_vertex = (uvedge.va, uvedge.vb) if not uvedge.uvface.flipped else (uvedge.vb, uvedge.va)
         edge = first_vertex.co - second_vertex.co
-        self.width = edge.length #we don't know why the edge.length is halved ???????????????? weird
-        self.pattern = SawtoothPattern()
+        self.width = edge.length
+        self.pattern = SawtoothPattern(isreversed)
+
         midsection_count = floor(self.width / self.pattern.width)
         midsection_width = self.pattern.width * midsection_count
         offset_left = (self.width - midsection_width) / 2
@@ -1377,6 +1387,7 @@ class SawtoothSticker:
                 tab_verts.insert(len(tab_verts), vi)
                 tab_verts_co.insert(len(tab_verts), vi.co)
 
+        print(offset_left)
 
         return tab_verts, tab_verts_co
 
@@ -1385,7 +1396,7 @@ class Sticker:
     """Mark in the document: sticker tab"""
     __slots__ = ('bounds', 'center', 'rot', 'text', 'width', 'vertices')
 
-    def __init__(self, uvedge, default_width, index, other: UVEdge):
+    def __init__(self, uvedge, default_width, index, other: UVEdge, isreversed=False):
         """Sticker is directly attached to the given UVEdge"""
         first_vertex, second_vertex = (uvedge.va, uvedge.vb) if not uvedge.uvface.flipped else (uvedge.vb, uvedge.va)
         edge = first_vertex.co - second_vertex.co
@@ -1436,7 +1447,7 @@ class Sticker:
 
         self.width = sticker_width
 
-        sawtooth = SawtoothSticker(uvedge, default_width, index, other)
+        sawtooth = SawtoothSticker(uvedge, default_width, index, other, isreversed)
 
         tab_verts = []
         tab_verts_co = []
@@ -1457,7 +1468,7 @@ class Sticker:
         else:
             self.text = index
 
-        print(self.vertices)
+
         self.center = (uvedge.va.co + uvedge.vb.co) / 2
         self.bounds = tab_verts_co
         self.bounds.insert(len(tab_verts_co), self.center)
