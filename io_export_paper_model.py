@@ -490,15 +490,17 @@ class Mesh:
                 target_island = target.uvface.island
                 if do_create_numbers:
                     for uvedge in [source] + edge.uvedges[2:]:
-                        if not is_index_obvious(uvedge, target):
+                        # if not is_index_obvious(uvedge, target):
                             # it will not be clear to see that these uvedges should be sticked together
                             # So, create an arrow and put the index on all stickers
-                            target_island.sticker_numbering += 1
-                            index = str(target_island.sticker_numbering)
-                            if is_upsidedown_wrong(index):
-                                index += "."
-                            target_island.add_marker(Arrow(target, default_width, index))
-                            break
+                        target_island.sticker_numbering += 1
+                        index = str(target_island.sticker_numbering)
+                        if is_upsidedown_wrong(index):
+                            index += "."
+                        # target_island.add_marker(Arrow(target, default_width, index))
+                        target.sticker = Sticker(target, default_width, index, uvedge)
+                        target_island.add_marker(target.sticker)
+                        break
                 add_sticker(source, index, target)
             elif len(edge.uvedges) > 2:
                 target = edge.uvedges[0]
@@ -1148,6 +1150,7 @@ class UVEdge:
         self.uvface = uvface
         self.sticker = None
         self.loop = loop
+        print(self.va, self.vb)
 
     def update(self):
         """Update data if UVVertices have moved"""
@@ -1299,6 +1302,85 @@ def makeUVVertices(v):
 
 
 # //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+class Tooth:
+    __slots__ = ("geometry", "width")
+    def __init__(self):
+
+        def load_geometry():
+            return svg2uv("C:\Program Files\\Blender Foundation\\Blender 2.81\\2.81\\scripts\\addons\\Stickers\\tooth.svg")
+
+        def getWidth():
+            # get bounding box of geometry
+            return 0.005 # stub
+
+        self.geometry = load_geometry()
+        self.width = getWidth()
+        print(self.geometry)
+class Gap:
+    __slots__ = ("geometry", "width")
+    def __init__(self):
+
+        def load_geometry():
+            return svg2uv("C:\Program Files\\Blender Foundation\\Blender 2.81\\2.81\\scripts\\addons\\Stickers\\gap.svg")
+
+        def getWidth():
+            # get bounding box of geometry
+            return  0.005
+
+        self.geometry = load_geometry()
+        self.width = getWidth()
+        print(self.geometry)
+
+class SawtoothPattern:
+    __slots__ = ("tileset", "width")
+    def __init__(self):
+        def getWidth(tileset):
+            width = 0
+            for tile in tileset:
+                width += tile.width
+            return width
+
+        self.tileset = [Gap(), Tooth()]
+        self.width = getWidth(self.tileset)
+
+
+    def getGeometry(self):
+        vertices = []
+        for tile in self.tileset:
+            for vi in tile.geometry:
+                vertices.insert(len(vertices), vi)
+
+        return vertices
+
+class SawtoothSticker:
+    __slots__ = ('bounds', 'center', 'rot', 'text', 'width', 'vertices', "pattern", "geometry", "geometry_co")
+
+    def __init__(self, uvedge, default_width, index, other: UVEdge):
+        first_vertex, second_vertex = (uvedge.va, uvedge.vb) if not uvedge.uvface.flipped else (uvedge.vb, uvedge.va)
+        edge = first_vertex.co - second_vertex.co
+        self.width = edge.length #we don't know why the edge.length is halved ???????????????? weird
+        self.pattern = SawtoothPattern()
+        midsection_count = floor(self.width / self.pattern.width)
+        midsection_width = self.pattern.width * midsection_count
+        offset_left = (self.width - midsection_width) / 2
+        offset_right = (self.width - midsection_width) / 2
+        self.geometry, self.geometry_co = self.construct(offset_left, midsection_count, self.pattern)
+        print(self.width, self.pattern.width, midsection_count)
+
+    def construct(self, offset_left, midsection_count, pattern):
+        tab_verts = []
+        tab_verts_co = []
+        tab = self.pattern.getGeometry()
+        for n in range(0, midsection_count):
+            for i in range(len(tab)):
+                vi = UVVertex((tab[i].co) + M.Vector((self.pattern.width * n + offset_left, 0)))
+                tab_verts.insert(len(tab_verts), vi)
+                tab_verts_co.insert(len(tab_verts), vi.co)
+
+
+        return tab_verts, tab_verts_co
+
+
 class Sticker:
     """Mark in the document: sticker tab"""
     __slots__ = ('bounds', 'center', 'rot', 'text', 'width', 'vertices')
@@ -1348,42 +1430,37 @@ class Sticker:
         len_a = min(len_a, (edge.length * sin_b) / (sin_a * cos_b + sin_b * cos_a))
         len_b = 0 if sin_b == 0 else min(sticker_width / sin_b, (edge.length - len_a * cos_a) / cos_b)
 
-        tangent = edge.normalized()
+        tangent = edge.normalized() #this is a Vector
         cos, sin = tangent
         self.rot = M.Matrix(((cos, -sin), (sin, cos)))
 
-        self.width = sticker_width 
+        self.width = sticker_width
 
-        num_tabs = floor(edge.length/self.width)
-
-        tab = svg2uv(
-            "C:\Program Files\\Blender Foundation\\Blender 2.81\\2.81\\scripts\\addons\\Stickers\\tooth-sawtooth.svg")
+        sawtooth = SawtoothSticker(uvedge, default_width, index, other)
 
         tab_verts = []
         tab_verts_co = []
-
-        for n in range(num_tabs):
-            for i in range(len(tab)):
-                vi = UVVertex((second_vertex.co + self.rot @ tab[i].co) +  self.rot @ M.Vector((self.width * n, 0)))
-                tab_verts.insert(len(tab_verts), vi)
-                tab_verts_co.insert(len(tab_verts), vi.co)
+        for i in range(len(sawtooth.geometry)):
+            vi = UVVertex((second_vertex.co + self.rot @ sawtooth.geometry_co[i]))
+            tab_verts.insert(len(tab_verts), vi)
+            tab_verts_co.insert(len(tab_verts), vi.co)
 
         #OPTIONAL ADJUSTMENT: +  self.rot @ M.Vector((0, self.width * 0.2))
-
 
         self.vertices = tab_verts
         self.vertices.insert(len(tab_verts), first_vertex)
         self.vertices.insert(0, second_vertex)
 
-        print(tab_verts)
 
         if index and uvedge.uvface.island is not other.uvface.island:
             self.text = "{}:{}".format(other.uvface.island.abbreviation, index)
         else:
             self.text = index
+
+        print(self.vertices)
         self.center = (uvedge.va.co + uvedge.vb.co) / 2
         self.bounds = tab_verts_co
-        self.bounds.insert(len(tab_verts), self.center)
+        self.bounds.insert(len(tab_verts_co), self.center)
 
 
 class NumberAlone:
