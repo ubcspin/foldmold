@@ -33,6 +33,7 @@ def angle_between_normals(a, b):
         dp = 1
     return math.degrees(math.acos(dp))
 
+
 def remove_duplicates(duplicate):
     final_list = []
     for num in duplicate:
@@ -40,12 +41,21 @@ def remove_duplicates(duplicate):
             final_list.append(num)
     return final_list
 
+
 def remove_list(original, list):
     final_list = []
     for num in original:
         if num not in list and num not in final_list:
             final_list.append(num)
     return final_list
+
+
+def clamp_list(list, decimals):
+    new_list = []
+    for val in list:
+        new_list.append(round(val, decimals))
+    return new_list
+
 
 if hasattr(bm.verts, "ensure_lookup_table"):
     bm.verts.ensure_lookup_table()
@@ -56,29 +66,42 @@ if hasattr(bm.verts, "ensure_lookup_table"):
 sharpest = 180
 seamedge = bm.edges[0]
 kerfedges = []
-for edge in bm.edges:
 
-    # find loops
-    faces = edge.link_faces
-    if (faces[0].normal.x == faces[1].normal.x):
+f = bm.edges[0].link_faces
+normal_a = f[0].normal
+normal_b = f[1].normal
+
+prev_axis = np.cross(normal_a, normal_b) / np.linalg.norm(np.cross(normal_a, normal_b))
+prev_axis = clamp_list(prev_axis, 5)
+
+for i in range(1, len(bm.edges)):
+    faces = bm.edges[i].link_faces
+    normal_a = faces[0].normal
+    normal_b = faces[1].normal
+    axis = np.cross(normal_a, normal_b) / np.linalg.norm(np.cross(normal_a, normal_b))
+    axis = clamp_list(axis, 5)
+
+    # two axes the same
+    if (abs(axis[0]) == abs(prev_axis[0]) and abs(axis[1]) == abs(prev_axis[1])):
         faces[0].material_index = 2
         faces[1].material_index = 2
-
-    elif (faces[0].normal.y == faces[1].normal.y):
+    elif (abs(axis[1]) == abs(prev_axis[1]) and abs(axis[2]) == abs(prev_axis[2])):
         faces[0].material_index = 2
         faces[1].material_index = 2
-
-    elif (faces[0].normal.z == faces[1].normal.z):
+    elif (abs(axis[0]) == abs(prev_axis[0]) and abs(axis[2]) == abs(prev_axis[2])):
         faces[0].material_index = 2
         faces[1].material_index = 2
+    else:
+        print(axis, prev_axis)
+        prev_axis = axis
 
     # find seams
     if (faces[0].material_index == 2 and faces[1].material_index == 2 and not faces[0].smooth and not faces[1].smooth):
         if (angle_between_normals(faces[0].normal, faces[1].normal) < sharpest):
-            seamedge = edge
-    elif ((faces[0].smooth and faces[1].smooth) or (faces[0].smooth and faces[1].material_index == 2) or (faces[0].material_index == 2 and faces[1].smooth)):
-        kerfedges.extend([edge])
-
+            seamedge = bm.edges[i]
+    elif ((faces[0].smooth and faces[1].smooth) or (faces[0].smooth and faces[1].material_index == 2) or (
+            faces[0].material_index == 2 and faces[1].smooth)):
+        kerfedges.extend([bm.edges[i]])
 
 seamedge.seam = True
 
@@ -93,11 +116,10 @@ for face in bm.faces:
         area = face.calc_area()
         print(area)
         kerfs.extend(face.edges)
-print(kerfs)
 kerfs = remove_duplicates(kerfs)
 kerfs = [edge for edge in kerfs if edge not in kerfedges]
 bmesh.ops.subdivide_edges(bm, edges=kerfs, cuts=1, use_grid_fill=True)
-        # UX?
+# UX?
 
 # detect loop
 
