@@ -123,10 +123,7 @@ bmesh.ops.subdivide_edges(bm, edges=kerfs, cuts=1, use_grid_fill=True)
 
 # detect loop
 
-
 bpy.ops.object.mode_set(mode="OBJECT")
-
 bm.to_mesh(me)
+
 print("done")
-
-

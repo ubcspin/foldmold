@@ -1,4 +1,3 @@
-
 import bpy
 import bl_operators
 import bmesh
@@ -18,8 +17,6 @@ diff = arm.modifiers.new(name="Boolean", type="BOOLEAN")
 diff.object = obj
 diff.operation = "DIFFERENCE"
 bpy.ops.object.modifier_apply(apply_as='DATA',modifier=arm.modifiers[0].name)
-
-
 
 bm.to_mesh(me)
 
