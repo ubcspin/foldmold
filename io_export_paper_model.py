@@ -382,6 +382,7 @@ class Mesh:
             for edge in edges:
                 edge.generate_priority(priority_effect, average_length)
             edges.sort(reverse=False, key=lambda edge: edge.priority)
+            print([edge.is_kerf for edge in edges])
             for edge in edges:
                 if not edge.vector:
                     continue
@@ -498,9 +499,7 @@ class Mesh:
                         if is_upsidedown_wrong(index):
                             index += "."
                         # target_island.add_marker(Arrow(target, default_width, index))
-
                         target.sticker = Sticker(target, default_width, index, uvedge, True)
-
                         target_island.add_marker(target.sticker)
                         break
                 add_sticker(source, index, target)
@@ -696,7 +695,7 @@ class Edge:
     """Wrapper for BPy Edge"""
     __slots__ = ('data', 'va', 'vb', 'main_faces', 'uvedges',
                  'vector', 'angle',
-                 'is_main_cut', 'force_cut', 'priority', 'freestyle')
+                 'is_main_cut', 'force_cut', 'priority', 'freestyle', 'is_kerf')
 
     def __init__(self, edge):
         self.data = edge
@@ -714,6 +713,13 @@ class Edge:
         self.priority = None
         self.angle = None
         self.freestyle = False
+
+        faces = edge.link_faces
+        if(faces[0].smooth and faces[1].smooth):
+            self.is_kerf = True
+            print("TRUEEEE")
+        else:
+            self.is_kerf = False
 
     def choose_main_faces(self):
         """Choose two main faces that might get connected in an island"""
@@ -744,19 +750,22 @@ class Edge:
             if loop_a.link_loop_next.vert != loop_b.vert or loop_b.link_loop_next.vert != loop_a.vert:
                 self.angle = abs(self.angle)
 
+
     def generate_priority(self, priority_effect, average_length):
         """Calculate the priority value for cutting"""
         angle = self.angle
         if angle > 0:
             self.priority = priority_effect['CONVEX'] * angle / pi
         else:
-            self.priority = priority_effect['CONCAVE'] * (-angle) / pi
+            self.priority = priority_effect['CONCAVE'] * angle / pi
         self.priority += (self.vector.length / average_length) * priority_effect['LENGTH']
+        print(self.priority)
 
     def is_cut(self, face):
         """Return False if this edge will the given face to another one in the resulting net
         (useful for edges with more than two faces connected)"""
         # Return whether there is a cut between the two main faces
+
         if self.main_faces and face in {loop.face for loop in self.main_faces}:
             return self.is_main_cut
         # All other faces (third and more) are automatically treated as cut
@@ -1152,7 +1161,6 @@ class UVEdge:
         self.uvface = uvface
         self.sticker = None
         self.loop = loop
-        print(self.va, self.vb)
 
     def update(self):
         """Update data if UVVertices have moved"""
@@ -1317,7 +1325,6 @@ class Tooth:
 
         self.geometry = load_geometry()
         self.width = getWidth()
-        print(self.geometry)
 class Gap:
     __slots__ = ("geometry", "width")
     def __init__(self):
@@ -1329,15 +1336,12 @@ class Gap:
             # get bounding box of geometry
             return  0.0045
 
-
         self.geometry = load_geometry()
         self.width = getWidth()
-        print(self.geometry)
 
 class SawtoothPattern:
     __slots__ = ("tileset", "width")
     def __init__(self, isreversed):
-
         def getWidth(tileset):
             width = 0
             for tile in tileset:
@@ -1348,7 +1352,6 @@ class SawtoothPattern:
             self.tileset = [Tooth(), Gap()]
         else:
             self.tileset = [Gap(), Tooth()]
-
         self.width = getWidth(self.tileset)
 
 
@@ -1363,13 +1366,11 @@ class SawtoothPattern:
 class SawtoothSticker:
     __slots__ = ('bounds', 'center', 'rot', 'text', 'width', 'vertices', "pattern", "geometry", "geometry_co")
 
-
     def __init__(self, uvedge, default_width, index, other: UVEdge, isreversed):
         first_vertex, second_vertex = (uvedge.va, uvedge.vb) if not uvedge.uvface.flipped else (uvedge.vb, uvedge.va)
         edge = first_vertex.co - second_vertex.co
         self.width = edge.length
         self.pattern = SawtoothPattern(isreversed)
-
         midsection_count = floor(self.width / self.pattern.width)
         midsection_width = self.pattern.width * midsection_count
         offset_left = (self.width - midsection_width) / 2
@@ -1388,7 +1389,6 @@ class SawtoothSticker:
                 tab_verts_co.insert(len(tab_verts), vi.co)
 
         print(offset_left)
-
         return tab_verts, tab_verts_co
 
 
@@ -1442,7 +1442,11 @@ class Sticker:
         len_b = 0 if sin_b == 0 else min(sticker_width / sin_b, (edge.length - len_a * cos_a) / cos_b)
 
         tangent = edge.normalized() #this is a Vector
-        cos, sin = tangent
+        cos = tangent.x
+        sin = tangent.y
+        print("**********************************")
+        print(tangent)
+        print(tangent.x)
         self.rot = M.Matrix(((cos, -sin), (sin, cos)))
 
         self.width = sticker_width
@@ -1468,7 +1472,6 @@ class Sticker:
         else:
             self.text = index
 
-
         self.center = (uvedge.va.co + uvedge.vb.co) / 2
         self.bounds = tab_verts_co
         self.bounds.insert(len(tab_verts_co), self.center)
@@ -1493,7 +1496,7 @@ class NumberAlone:
 class SVG:
     """Simple SVG exporter"""
 
-    def __init__(self, page_size: M.Vector, style, margin, pure_net=True, angle_epsilon=0.01):
+    def __init__(self, page_size: M.Vector, style, margin, pure_net=True, angle_epsilon=0):
         """Initialize document settings.
         page_size: document dimensions in meters
         pure_net: if True, do not use image"""
@@ -1668,9 +1671,14 @@ class SVG:
                         if vertex_pair not in visited_edges:
                             visited_edges.add(vertex_pair)
                             if edge.angle > self.angle_epsilon:
+                                if(edge.is_kerf):
+                                    print("ADDED((((((((((((((((((")
                                 data_convex.append(data_uvedge)
-                            elif edge.angle < -self.angle_epsilon:
+                            # elif edge.angle < -self.angle_epsilon:
+                            else:
                                 data_concave.append(data_uvedge)
+                                if(edge.is_kerf):
+                                    print("ADDED))))))))))))))))))))))")
                     if island.is_inside_out:
                         data_convex, data_concave = data_concave, data_convex
 
@@ -1783,7 +1791,7 @@ class PDF:
         889: '%æ', 944: 'W\x9c', 1000: '\x85\x89\x8c\x97\x99Æ', 1015: '@', }
     character_width = {c: value for (value, chars) in character_width_packed.items() for c in chars}
 
-    def __init__(self, page_size: M.Vector, style, margin, pure_net=True, angle_epsilon=0.01):
+    def __init__(self, page_size: M.Vector, style, margin, pure_net=True, angle_epsilon=0):
         self.page_size = page_size
         self.style = style
         self.margin = M.Vector((margin, margin))
@@ -1955,8 +1963,13 @@ class PDF:
                     # each uvedge exists in two opposite-oriented variants; we want to add each only once
                     if uvedge.sticker or uvedge.uvface.flipped != (id(uvedge.va) > id(uvedge.vb)):
                         if edge.angle > self.angle_epsilon:
+                            if(edge.is_kerf):
+                                print("ADDED((((((((((((((((((")
                             data_convex.append(data_uvedge)
-                        elif edge.angle < -self.angle_epsilon:
+                        # elif edge.angle < -self.angle_epsilon:
+                        else:
+                            if(edge.is_kerf):
+                                print("ADDED))))))))))))))))))")
                             data_concave.append(data_uvedge)
                 if island.is_inside_out:
                     data_convex, data_concave = data_concave, data_convex

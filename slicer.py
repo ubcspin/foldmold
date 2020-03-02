@@ -98,6 +98,7 @@ def slicer(settings):
     elist = []
     erem = []
 
+    # todo - relabel minz/maxz to be some more clear coordinate
     if cutdir == 'z':
         minz = min([v.co[2] for v in bm.verts])
         maxz = max([v.co[2] for v in bm.verts])
@@ -121,12 +122,15 @@ def slicer(settings):
             newgeo = bmesh.ops.bisect_plane(cbm, geom = cbm.edges[:] + cbm.faces[:], dist = 0, plane_co = (0.0, 0.0, lh), plane_no = (0.0, 0.0, 1), clear_outer = False, clear_inner = False)['geom_cut']
 
         newverts = [v for v in newgeo if isinstance(v, bmesh.types.BMVert)]
+
         newedges = [e for e in newgeo if isinstance(e, bmesh.types.BMEdge)]        
         voffset = min([v.index for v in newverts])
         lvpos = [v.co for v in newverts]  
         vpos = numpy.append(vpos, numpy.array(lvpos).flatten())
+
         vtlist.append([(v.co - cob.location)[0:] for v in newverts])
         etlist.append([[(v.co - cob.location)[0:] for v in e.verts] for e in newedges])
+
         vindex = numpy.append(vindex, numpy.array([[v.index  - voffset + vlen for v in e.verts] for e in newedges]).flatten())
         vlen += len(newverts)
         elen += len(newedges)
@@ -134,11 +138,13 @@ def slicer(settings):
         elenlist.append(len(newedges) + elenlist[-1])
         lh += lt
         cbm.free()
+
     bm.free()        
     me.vertices.add(vlen)
     me.vertices.foreach_set('co', vpos)
     me.edges.add(elen)
     me.edges.foreach_set('vertices', vindex)
+
     # if accuracy:
     #     vranges = [(vlenlist[i], vlenlist[i+1], elenlist[i], elenlist[i+1]) for i in range(len(vlenlist) - 1)]
     #     vtlist = []
@@ -217,6 +223,7 @@ def slicer(settings):
     #
     #         vtlist.append([(me.vertices[v].co, v)[v < 0]  for v in vlist])
     #         etlist.append([elist])
+
     
     if not sepfile:
         filename = os.path.join(os.path.dirname(bpy.data.filepath), aob.name+'.svg') if not ofile else bpy.path.abspath(ofile)
@@ -227,7 +234,7 @@ def slicer(settings):
             filenames = [os.path.join(os.path.dirname(bpy.path.abspath(ofile)), bpy.path.display_name_from_filepath(ofile) + '{}.svg'.format(i)) for i in range(len(vlenlist))]
 
     for vci, vclist in enumerate(vtlist):
-        if(vci % 2 == 0):
+        if(vci % 2 == 0): # todo skip slice mod other than 2?
             if sepfile or vci == 0:
                 svgtext = ''
 
@@ -258,6 +265,7 @@ def slicer(settings):
             #     ydiff = -ymin + ct
 
             if (sepfile and svgpos == '1') or not sepfile:
+
                 if f_scale * (xmaxlast + cxsize) <= mwidth:
                     xdiff = xmaxlast - xmin + ct
                     ydiff = yrowpos - ymin + ct
@@ -376,6 +384,7 @@ class OBJECT_PT_Laser_Slicer_Panel(bpy.types.Panel):
         newrow(layout, "Separate files:", scene.slicer_settings, 'laser_slicer_separate_files')
         newrow(layout, "Direction:", scene.slicer_settings, 'direction')
 
+
         if scene.slicer_settings.laser_slicer_separate_files:
             newrow(layout, "Cut position:", scene.slicer_settings, 'laser_slicer_svg_position')
 
@@ -385,6 +394,7 @@ class OBJECT_PT_Laser_Slicer_Panel(bpy.types.Panel):
 
         if context.active_object and context.active_object.select_get() and context.active_object.type == 'MESH' and context.active_object.data.polygons:
             row = layout.row()
+
             cutdir = scene.slicer_settings.direction
             if cutdir == 'z':
                 num_slices = context.active_object.dimensions[2] * 1000 * context.scene.unit_settings.scale_length/scene.slicer_settings.laser_slicer_material_thick
@@ -401,8 +411,9 @@ class OBJECT_PT_Laser_Slicer_Panel(bpy.types.Panel):
                 col = split.column()
                 col.operator("object.laser_slicer", text="Slice the object")
 
-class Slicer_Settings(bpy.types.PropertyGroup):
+
     direction: StringProperty(name="", description="Axis along which to cut", default='z')
+
     laser_slicer_material_thick: FloatProperty(
          name="", description="Thickness of the cutting material in mm",
              min=0.1, max=50, default=2)
