@@ -12,4 +12,5 @@ Instructions:
 
 Python build:
 
-https://wiki.blender.org/wiki/Building_Blender/Other/BlenderAsPyModule
+[For Mac](./install_bpy_mac.md)
+[For Windows & Linux (the official documentation)](https://wiki.blender.org/wiki/Building_Blender/Other/BlenderAsPyModule)
