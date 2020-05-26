@@ -471,8 +471,8 @@ class Mesh:
             face = uvedge.uvface.face
             return face.calc_area() / face.calc_perimeter()
 
-        def add_sticker(uvedge, index, target_uvedge):
-            uvedge.sticker = Sticker(uvedge, default_width, index, target_uvedge)
+        def add_sticker(uvedge, index, target_uvedge, isreversed=False):
+            uvedge.sticker = Sticker(uvedge, default_width, index, target_uvedge, isreversed)
             uvedge.uvface.island.add_marker(uvedge.sticker)
 
         def is_index_obvious(uvedge, target):
@@ -489,25 +489,30 @@ class Mesh:
                 if uvedge_priority(target) < uvedge_priority(source):
                     target, source = source, target
                 target_island = target.uvface.island
+                add_sticker(target, index, source, True)
+
+        for edge in self.edges.values():
+            index = None
+            if edge.is_main_cut and len(edge.uvedges) >= 2 and edge.vector.length_squared > 0:
+                target, source = edge.uvedges[:2]
+                if uvedge_priority(target) < uvedge_priority(source):
+                    target, source = source, target
+                target_island = target.uvface.island
                 if do_create_numbers:
                     for uvedge in [source] + edge.uvedges[2:]:
-                        # if not is_index_obvious(uvedge, target):
-                            # it will not be clear to see that these uvedges should be sticked together
-                            # So, create an arrow and put the index on all stickers
                         target_island.sticker_numbering += 1
                         index = str(target_island.sticker_numbering)
                         if is_upsidedown_wrong(index):
                             index += "."
                         # target_island.add_marker(Arrow(target, default_width, index))
-                        target.sticker = Sticker(target, default_width, index, uvedge, True)
-                        target_island.add_marker(target.sticker)
                         break
-                add_sticker(source, index, target)
-            elif len(edge.uvedges) > 2:
-                target = edge.uvedges[0]
-            if len(edge.uvedges) > 2:
-                for source in edge.uvedges[2:]:
-                    add_sticker(source, index, target)
+                add_sticker(source, index, target, False)
+            # elif len(edge.uvedges) > 2:
+            #     target = edge.uvedges[0]
+            # if len(edge.uvedges) > 2:
+            #     for source in edge.uvedges[2:]:
+            #         add_sticker(source, index, target, False)
+
 
     def generate_numbers_alone(self, size):
         global_numbering = 0
@@ -1245,8 +1250,7 @@ def load_svg(path):
 
 
 def svg2uv(path):
-    # vertices.clear()
-
+    vertices.clear()
     svg_root = load_svg(path)
     if svg_root is None:
         print("SVG import blowed up, no root!")
@@ -1269,7 +1273,7 @@ def svg2uv(path):
     for p in paths:
         path = p.attrib['d']
         path_vectors += vectorize_paths(path)
-    return vertices
+    return vertices.copy()
 
 
 def vectorize_paths(path):
@@ -1334,7 +1338,7 @@ class Gap:
 
         def getWidth():
             # get bounding box of geometry
-            return  0.0045
+            return  0.005
 
         self.geometry = load_geometry()
         self.width = getWidth()
@@ -1392,6 +1396,101 @@ class SawtoothSticker:
         return tab_verts, tab_verts_co
 
 
+class Hole:
+    __slots__ = ("geometry", "width")
+    def __init__(self):
+
+        def load_geometry():
+            return svg2uv("C:\Program Files\\Blender Foundation\\Blender 2.81\\2.81\\scripts\\addons\\Stickers\\hole.svg")
+
+        def getWidth():
+            # get bounding box of geometry
+            return 0.005 # stub
+
+        self.geometry = load_geometry()
+        self.width = getWidth()
+class Connector:
+    __slots__ = ("geometry", "width")
+    def __init__(self):
+
+        def load_geometry():
+            return svg2uv("C:\Program Files\\Blender Foundation\\Blender 2.81\\2.81\\scripts\\addons\\Stickers\\gap2.svg")
+
+        def getWidth():
+            # get bounding box of geometry
+            return  0.005
+
+        self.geometry = load_geometry()
+        self.width = getWidth()
+
+class Pin:
+    __slots__ = ("geometry", "width")
+    def __init__(self):
+
+        def load_geometry():
+            return svg2uv("C:\Program Files\\Blender Foundation\\Blender 2.81\\2.81\\scripts\\addons\\Stickers\\pin.svg")
+
+        def getWidth():
+            # get bounding box of geometry
+            return  0.005
+
+        self.geometry = load_geometry()
+        self.width = getWidth()
+
+
+class PinPattern:
+    __slots__ = ("tileset", "width")
+    def __init__(self, isreversed):
+        def getWidth(tileset):
+            width = 0
+            for tile in tileset:
+                width += tile.width
+            return width
+
+
+        if(isreversed):
+            self.tileset = [Hole(), Connector()]
+        else:
+            self.tileset = [Pin(), Gap()]
+        self.width = getWidth(self.tileset)
+
+
+    def getGeometry(self):
+        vertices = []
+        for tile in self.tileset:
+            for vi in tile.geometry:
+                vertices.insert(len(vertices), vi)
+
+        return vertices
+
+class PinSticker:
+    __slots__ = ('bounds', 'center', 'rot', 'text', 'width', 'vertices', "pattern", "geometry", "geometry_co")
+
+    def __init__(self, uvedge, default_width, index, other: UVEdge, isreversed):
+        first_vertex, second_vertex = (uvedge.va, uvedge.vb) if not uvedge.uvface.flipped else (uvedge.vb, uvedge.va)
+        edge = first_vertex.co - second_vertex.co
+        self.width = edge.length
+        self.pattern = PinPattern(isreversed)
+        midsection_count = floor(self.width / self.pattern.width)
+        midsection_width = self.pattern.width * midsection_count
+        offset_left = (self.width - midsection_width) / 2
+        offset_right = (self.width - midsection_width) / 2
+        self.geometry, self.geometry_co = self.construct(offset_left, midsection_count, self.pattern)
+        print(self.width, self.pattern.width, midsection_count)
+
+    def construct(self, offset_left, midsection_count, pattern):
+        tab_verts = []
+        tab_verts_co = []
+        tab = self.pattern.getGeometry()
+        for n in range(0, midsection_count):
+            for i in range(len(tab)):
+                vi = UVVertex((tab[i].co) + M.Vector((self.pattern.width * n + offset_left, 0)))
+                tab_verts.insert(len(tab_verts), vi)
+                tab_verts_co.insert(len(tab_verts), vi.co)
+
+        print(offset_left)
+        return tab_verts, tab_verts_co
+
 class Sticker:
     """Mark in the document: sticker tab"""
     __slots__ = ('bounds', 'center', 'rot', 'text', 'width', 'vertices')
@@ -1401,8 +1500,8 @@ class Sticker:
         first_vertex, second_vertex = (uvedge.va, uvedge.vb) if not uvedge.uvface.flipped else (uvedge.vb, uvedge.va)
         edge = first_vertex.co - second_vertex.co
         sticker_width = min(default_width, edge.length / 2)
-        other_first, other_second = (other.va, other.vb) if not other.uvface.flipped else (other.vb, other.va)
-        other_edge = other_second.co - other_first.co
+        # other_first, other_second = (other.va, other.vb) if not other.uvface.flipped else (other.vb, other.va)
+        # other_edge = other_second.co - other_first.co
 
         # angle a is at vertex uvedge.va, b is at uvedge.vb
         cos_a = cos_b = 0.5
@@ -1411,26 +1510,26 @@ class Sticker:
         len_a = len_b = sticker_width / sin_a
 
         # fix overlaps with the most often neighbour - its sticking target
-        if first_vertex == other_second:
-            cos_a = max(cos_a, edge.dot(other_edge) / (edge.length_squared))  # angles between pi/3 and 0
-        elif second_vertex == other_first:
-            cos_b = max(cos_b, edge.dot(other_edge) / (edge.length_squared))  # angles between pi/3 and 0
+        # if first_vertex == other_second:
+        #     cos_a = max(cos_a, edge.dot(other_edge) / (edge.length_squared))  # angles between pi/3 and 0
+        # elif second_vertex == other_first:
+        #     cos_b = max(cos_b, edge.dot(other_edge) / (edge.length_squared))  # angles between pi/3 and 0
 
         # Fix tabs for sticking targets with small angles
-        try:
-            other_face_neighbor_left = other.neighbor_left
-            other_face_neighbor_right = other.neighbor_right
-            other_edge_neighbor_a = other_face_neighbor_left.vb.co - other.vb.co
-            other_edge_neighbor_b = other_face_neighbor_right.va.co - other.va.co
-            # Adjacent angles in the face
-            cos_a = max(cos_a,
-                        -other_edge.dot(other_edge_neighbor_a) / (other_edge.length * other_edge_neighbor_a.length))
-            cos_b = max(cos_b,
-                        other_edge.dot(other_edge_neighbor_b) / (other_edge.length * other_edge_neighbor_b.length))
-        except AttributeError:  # neighbor data may be missing for edges with 3+ faces
-            pass
-        except ZeroDivisionError:
-            pass
+        # try:
+        #     other_face_neighbor_left = other.neighbor_left
+        #     other_face_neighbor_right = other.neighbor_right
+        #     other_edge_neighbor_a = other_face_neighbor_left.vb.co - other.vb.co
+        #     other_edge_neighbor_b = other_face_neighbor_right.va.co - other.va.co
+        #     # Adjacent angles in the face
+        #     cos_a = max(cos_a,
+        #                 -other_edge.dot(other_edge_neighbor_a) / (other_edge.length * other_edge_neighbor_a.length))
+        #     cos_b = max(cos_b,
+        #                 other_edge.dot(other_edge_neighbor_b) / (other_edge.length * other_edge_neighbor_b.length))
+        # except AttributeError:  # neighbor data may be missing for edges with 3+ faces
+        #     pass
+        # except ZeroDivisionError:
+        #     pass
 
         # Calculate the lengths of the glue tab edges using the possibly smaller angles
         sin_a = abs(1 - cos_a ** 2) ** 0.5
@@ -1461,16 +1560,16 @@ class Sticker:
             tab_verts_co.insert(len(tab_verts), vi.co)
 
         #OPTIONAL ADJUSTMENT: +  self.rot @ M.Vector((0, self.width * 0.2))
-
+        self.vertices = []
         self.vertices = tab_verts
         self.vertices.insert(len(tab_verts), first_vertex)
         self.vertices.insert(0, second_vertex)
 
 
-        if index and uvedge.uvface.island is not other.uvface.island:
-            self.text = "{}:{}".format(other.uvface.island.abbreviation, index)
-        else:
-            self.text = index
+        # if index and uvedge.uvface.island is not other.uvface.island:
+        #     self.text = "{}:{}".format(other.uvface.island.abbreviation, index)
+        # else:
+        self.text = index
 
         self.center = (uvedge.va.co + uvedge.vb.co) / 2
         self.bounds = tab_verts_co
