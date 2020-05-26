@@ -30,6 +30,11 @@ bl_info = {
 
 import bpy, os, bmesh, numpy
 from bpy.props import FloatProperty, BoolProperty, EnumProperty, IntProperty, StringProperty, FloatVectorProperty
+from math import floor, ceil
+from lxml import etree
+import re
+import os.path as os_path
+import logging
 
 def newrow(layout, s1, root, s2):
     row = layout.row()
@@ -66,16 +71,17 @@ def slicer(settings):
     lcol = settings.laser_slicer_cut_colour
     lthick = settings.laser_slicer_cut_line
     cutdir = settings.direction
-    num_slices = 0
+    num_slices = settings.num_slices
+    num_to_skip = 0
 
-    if not any([o.get('Slices') for o in bpy.context.scene.objects]):
-        me = bpy.data.meshes.new('Slices')
-        cob = bpy.data.objects.new('Slices', me)
-        cob['Slices'] = 1
+    if not any([o.get('Slices'+cutdir) for o in bpy.context.scene.objects]):
+        me = bpy.data.meshes.new('Slices'+cutdir)
+        cob = bpy.data.objects.new('Slices'+cutdir, me)
+        cob['Slices'+cutdir] = 1
         cobexists = 0
     else:
         for o in bpy.context.scene.objects:
-            if o.get('Slices'):
+            if o.get('Slices'+cutdir):
                 bpy.context.view_layer.objects.active = o
 
                 for vert in o.data.vertices:
@@ -98,8 +104,94 @@ def slicer(settings):
     elist = []
     erem = []
 
-    # todo - relabel minz/maxz to be some more clear coordinate
-    if cutdir == 'z':
+
+
+##################################################################################################NOTCHES
+    vertices = []
+    logger = logging.getLogger(__name__)
+    ns = {"u": "http://www.w3.org/2000/svg"}
+    def load_svg(path):
+        parser = etree.XMLParser(remove_comments=True, recover=True)
+        try:
+            doc = etree.parse(path, parser=parser)
+            svg_root = doc.getroot()
+        except Exception as exc:
+            logger.error("Failed to load input file! (%s)" % exc)
+        else:
+            return svg_root
+
+    def svg2uv(path):
+        # vertices.clear()
+
+        svg_root = load_svg(path)
+        if svg_root is None:
+            print("SVG import blowed up, no root!")
+            return
+
+        polylines = svg_root.findall("u:polyline", ns)
+        paths = svg_root.findall("u:path", ns)
+
+        # Make Polyline Vectors
+        polyline_vectors = []
+
+        for p in polylines:
+            points = p.attrib['points']
+            polyline_vectors += vectorize_polylines(points)
+        for v in polyline_vectors:
+            makeUVVertices(v)
+
+        # Make Path vectors
+        path_vectors = []
+        for p in paths:
+            path = p.attrib['d']
+            path_vectors += vectorize_paths(path)
+        return vertices
+
+    def vectorize_paths(path):
+        # "M0,0H250V395.28a104.71,104.71,0,0,0,11.06,46.83h0A104.71,104.71,0,0,0,354.72,500h40.56a104.71,104.71,0,0,0,93.66-57.89h0A104.71,104.71,0,0,0,500,395.28V0"
+        r = re.compile('[MmHhAaVv][\d,\.-]*')  # split by commands
+        p = re.sub(r'-', r',-', path)  # make sure to catch negatives
+        commands = r.findall(p)
+        for c in commands:
+            command = c[0]
+            parameters = [float(i) for i in c[1:].split(",")]
+            print(command, parameters)
+
+        print(commands)
+        return []
+
+    def vectorize_polylines(points):
+        points = points.replace(",", " ")
+
+        ps = points.split()
+        xs = ps[0::2]  # every second element starting at 0
+        ys = ps[1::2]  # every second element starting at 1
+        lines = []
+
+        i = 0
+        while i in range(0, len(xs)-1):
+            x1 = float(xs[i])
+            y1 = float(ys[i])
+            x2 = float(xs[i+1])
+            y2 = float(ys[i+1])
+            # fs = [float(i) for i in [x1,y1,x2,y2]]
+            o = {'x1': x1, 'y1': y1, 'x2': x2, 'y2': y2}
+            lines.append(o)
+            i += 1
+        return lines
+
+    def makeUVVertices(v):
+        # v1 = UVVertex(M.Vector((v["x1"], v["y1"])) * 0.00001)  # scaling down to avoid overflow
+
+        vertices.append(v)
+
+        # print("this line goes from point [%d, %d] to point [%d, %d]" % (v["x1"], v["y1"], v["x2"], v["y2"]))
+######################################################################################################################333
+    if cutdir == 'rz':
+        minz = min([v.co[2] for v in bm.verts])
+        maxz = max([v.co[2] for v in bm.verts])
+        lh = minz + lt * 0.5
+    elif  cutdir == 'lz':
         minz = min([v.co[2] for v in bm.verts])
         maxz = max([v.co[2] for v in bm.verts])
         lh = minz + lt * 0.5
@@ -107,30 +199,39 @@ def slicer(settings):
         minz = min([v.co[0] for v in bm.verts])
         maxz = max([v.co[0] for v in bm.verts])
         lh = minz + lt * 0.5
-    elif cutdir == 'y':
+    elif cutdir == 'ly':
+        minz = min([v.co[1] for v in bm.verts])
+        maxz = max([v.co[1] for v in bm.verts])
+        lh = minz + lt * 0.5
+    elif cutdir == 'ry':
         minz = min([v.co[1] for v in bm.verts])
         maxz = max([v.co[1] for v in bm.verts])
         lh = minz + lt * 0.5
 
+    num_to_skip = ceil((maxz - minz)/(lt * num_slices))
+    print(num_to_skip)
     while lh < maxz:
         cbm = bm.copy()
         if cutdir == 'x':
             newgeo = bmesh.ops.bisect_plane(cbm, geom = cbm.edges[:] + cbm.faces[:], dist = 0, plane_co = (lh, 0.0, 0.0), plane_no = (1, 0.0, 0.0), clear_outer = False, clear_inner = False)['geom_cut']
-        if cutdir == 'y':
+        if cutdir == 'ly':
             newgeo = bmesh.ops.bisect_plane(cbm, geom = cbm.edges[:] + cbm.faces[:], dist = 0, plane_co = (0.0, lh, 0.0), plane_no = (0.0, 1, 0.0), clear_outer = False, clear_inner = False)['geom_cut']
-        if cutdir == 'z':
+        if cutdir == 'ry':
+            newgeo = bmesh.ops.bisect_plane(cbm, geom=cbm.edges[:] + cbm.faces[:], dist=0, plane_co=(0.0, lh, 0.0),
+                                            plane_no=(0.0, 1, 0.0), clear_outer=False, clear_inner=False)['geom_cut']
+
+        if cutdir == 'rz':
+            newgeo = bmesh.ops.bisect_plane(cbm, geom = cbm.edges[:] + cbm.faces[:], dist = 0, plane_co = (0.0, 0.0, lh), plane_no = (0.0, 0.0, 1), clear_outer = False, clear_inner = False)['geom_cut']
+        if cutdir == 'lz':
             newgeo = bmesh.ops.bisect_plane(cbm, geom = cbm.edges[:] + cbm.faces[:], dist = 0, plane_co = (0.0, 0.0, lh), plane_no = (0.0, 0.0, 1), clear_outer = False, clear_inner = False)['geom_cut']
 
         newverts = [v for v in newgeo if isinstance(v, bmesh.types.BMVert)]
-
         newedges = [e for e in newgeo if isinstance(e, bmesh.types.BMEdge)]        
         voffset = min([v.index for v in newverts])
         lvpos = [v.co for v in newverts]  
         vpos = numpy.append(vpos, numpy.array(lvpos).flatten())
-
         vtlist.append([(v.co - cob.location)[0:] for v in newverts])
         etlist.append([[(v.co - cob.location)[0:] for v in e.verts] for e in newedges])
-
         vindex = numpy.append(vindex, numpy.array([[v.index  - voffset + vlen for v in e.verts] for e in newedges]).flatten())
         vlen += len(newverts)
         elen += len(newedges)
@@ -138,13 +239,11 @@ def slicer(settings):
         elenlist.append(len(newedges) + elenlist[-1])
         lh += lt
         cbm.free()
-
     bm.free()        
     me.vertices.add(vlen)
     me.vertices.foreach_set('co', vpos)
     me.edges.add(elen)
     me.edges.foreach_set('vertices', vindex)
-
     # if accuracy:
     #     vranges = [(vlenlist[i], vlenlist[i+1], elenlist[i], elenlist[i+1]) for i in range(len(vlenlist) - 1)]
     #     vtlist = []
@@ -223,7 +322,6 @@ def slicer(settings):
     #
     #         vtlist.append([(me.vertices[v].co, v)[v < 0]  for v in vlist])
     #         etlist.append([elist])
-
     
     if not sepfile:
         filename = os.path.join(os.path.dirname(bpy.data.filepath), aob.name+'.svg') if not ofile else bpy.path.abspath(ofile)
@@ -234,11 +332,18 @@ def slicer(settings):
             filenames = [os.path.join(os.path.dirname(bpy.path.abspath(ofile)), bpy.path.display_name_from_filepath(ofile) + '{}.svg'.format(i)) for i in range(len(vlenlist))]
 
     for vci, vclist in enumerate(vtlist):
-        if(vci % 2 == 0): # todo skip slice mod other than 2?
+        if(vci % num_to_skip == 0):
             if sepfile or vci == 0:
                 svgtext = ''
 
-            if cutdir == 'z':
+            if cutdir == 'rz':
+                xmax = max([vc[0] for vc in vclist if vc not in (-1, -2)])
+                xmin = min([vc[0] for vc in vclist if vc not in (-1, -2)])
+                ymax = max([vc[1] for vc in vclist if vc not in (-1, -2)])
+                ymin = min([vc[1] for vc in vclist if vc not in (-1, -2)])
+                cysize = ymax - ymin + ct
+                cxsize = xmax - xmin + ct
+            elif cutdir == 'lz':
                 xmax = max([vc[0] for vc in vclist if vc not in (-1, -2)])
                 xmin = min([vc[0] for vc in vclist if vc not in (-1, -2)])
                 ymax = max([vc[1] for vc in vclist if vc not in (-1, -2)])
@@ -252,7 +357,14 @@ def slicer(settings):
                 ymin = min([vc[2] for vc in vclist if vc not in (-1, -2)])
                 cysize = ymax - ymin + ct
                 cxsize = xmax - xmin + ct
-            elif cutdir == 'y':
+            elif cutdir == 'ly':
+                xmax = max([vc[0] for vc in vclist if vc not in (-1, -2)])
+                xmin = min([vc[0] for vc in vclist if vc not in (-1, -2)])
+                ymax = max([vc[2] for vc in vclist if vc not in (-1, -2)])
+                ymin = min([vc[2] for vc in vclist if vc not in (-1, -2)])
+                cysize = ymax - ymin + ct
+                cxsize = xmax - xmin + ct
+            elif cutdir == 'ry':
                 xmax = max([vc[0] for vc in vclist if vc not in (-1, -2)])
                 xmin = min([vc[0] for vc in vclist if vc not in (-1, -2)])
                 ymax = max([vc[2] for vc in vclist if vc not in (-1, -2)])
@@ -260,12 +372,12 @@ def slicer(settings):
                 cysize = ymax - ymin + ct
                 cxsize = xmax - xmin + ct
 
+
             # if (sepfile and svgpos == '0') or (sepfile and vci == 0 and svgpos == '1'):
             #     xdiff = -xmin + ct
             #     ydiff = -ymin + ct
 
             if (sepfile and svgpos == '1') or not sepfile:
-
                 if f_scale * (xmaxlast + cxsize) <= mwidth:
                     xdiff = xmaxlast - xmin + ct
                     ydiff = yrowpos - ymin + ct
@@ -297,15 +409,191 @@ def slicer(settings):
                 ydiff = mheight/(2 * f_scale) - (0.5 * cysize) - ymin
 
             if not accuracy:
-                if(vci % 2 == 0):
+
+
+                if(vci % num_to_skip == 0):
                     print(vci)
                     svgtext += '<g>\n'
-                    if cutdir == 'z':
+                    if cutdir == 'rz':
+                        notch = svg2uv("C:\Program Files\\Blender Foundation\\Blender 2.81\\2.81\\scripts\\addons\\Stickers\\rnotch.svg")
+                        notch_scale = scale/10000
+                        notch_length = 0
+                        for e in notch:
+                            if e['x1'] > notch_length:
+                                notch_length = e['x1']
+                            if e['x2'] > notch_length:
+                                notch_length = e['x2']
+                        notch_length *= notch_scale
+
+
+                        slice_height = 0
+                        for e in etlist[vci]:
+                            for v in e:
+                                if v[1] > slice_height:
+                                    slice_height = v[1]
+
+                        print("HEIGHT"+str(slice_height))
+
+                        right_edge = etlist[vci][0]
+                        for e in etlist[vci]:
+                            if e[0][0] > right_edge[0][0]:
+                                right_edge = e
+                                print(right_edge[0])
+
+
                         svgtext += "".join(['<line x1="{0[0][0]}" y1="{0[0][1]}" x2="{0[1][0]}" y2="{0[1][1]}" style="stroke:rgb({1[0]},{1[1]},{1[2]});stroke-width:{2}" />\n'.format([(scale * (xdiff + v[0]), scale * (ydiff + v[1])) for v in e], [int(255 * lc) for lc in lcol], lthick) for e in etlist[vci]])
+                        for i in range(1, settings.num_slices):
+                            svgtext += "".join(['<line x1="{0[0][0]}" y1="{0[0][1]}" x2="{0[0][2]}" y2="{0[0][3]}"  style="stroke:rgb(0,0,0);stroke-width:1" />\n'.format(
+                            [(notch_scale * (v['x1']) + (xdiff + right_edge[0][0]) * scale - notch_length,
+                              notch_scale * ( v['y1']) + (ydiff*(i/settings.num_slices)+(i*slice_height/settings.num_slices)) * scale,
+                              notch_scale * (v['x2']) + (xdiff + right_edge[0][0]) * scale - notch_length,
+                              notch_scale * ( v['y2']) + (ydiff*(i/settings.num_slices)+(i*slice_height/settings.num_slices)) * scale)]) for v in notch])
+
+                    elif cutdir == 'lz':
+
+                        notch = svg2uv(
+                            "C:\Program Files\\Blender Foundation\\Blender 2.81\\2.81\\scripts\\addons\\Stickers\\lnotch.svg")
+                        notch_scale = scale / 10000
+                        notch_length = 0
+                        for e in notch:
+                            if e['x1'] > notch_length:
+                                notch_length = e['x1']
+                            if e['x2'] > notch_length:
+                                notch_length = e['x2']
+                        notch_length *= notch_scale
+
+                        slice_height = 0
+                        for e in etlist[vci]:
+                            for v in e:
+                                if v[1] > slice_height:
+                                    slice_height = v[1]
+
+                        print("HEIGHT"+str(slice_height))
+
+
+
+                        left_edge = etlist[vci][0]
+                        for e in etlist[vci]:
+                            if e[0][0] < left_edge[0][0]:
+                                left_edge = e
+                                print(left_edge[0][0])
+
+                        svgtext += "".join([
+                                               '<line x1="{0[0][0]}" y1="{0[0][1]}" x2="{0[1][0]}" y2="{0[1][1]}" style="stroke:rgb({1[0]},{1[1]},{1[2]});stroke-width:{2}" />\n'.format(
+                                                   [(scale * (xdiff + v[0]), scale * (ydiff + v[1])) for v in e],
+                                                   [int(255 * lc) for lc in lcol], lthick) for e in etlist[vci]])
+
+
+                        for i in range(1, settings.num_slices):
+                            svgtext += "".join([
+                                                   '<line x1="{0[0][0]}" y1="{0[0][1]}" x2="{0[0][2]}" y2="{0[0][3]}"  style="stroke:rgb(0,0,0);stroke-width:1" />\n'.format(
+                                                       [(notch_scale * (v['x1']) + (xdiff + left_edge[0][0]) * scale,
+                                                         notch_scale * (v['y1']) + (ydiff*(i/settings.num_slices)+(i*slice_height/settings.num_slices)) * scale,
+                                                         notch_scale * (v['x2']) + (xdiff + left_edge[0][0] ) * scale,
+                                                         notch_scale * (v['y2']) + (ydiff*(i/settings.num_slices)+(i*slice_height/settings.num_slices)) * scale)]) for v in notch])
+
+
                     elif cutdir == 'x':
                         svgtext += "".join(['<line x1="{0[0][0]}" y1="{0[0][1]}" x2="{0[1][0]}" y2="{0[1][1]}" style="stroke:rgb({1[0]},{1[1]},{1[2]});stroke-width:{2}" />\n'.format([(scale * (xdiff + v[1]), scale * (ydiff + v[2])) for v in e],[int(255 * lc) for lc in lcol], lthick) for e in etlist[vci]])
-                    elif cutdir == 'y':
-                        svgtext += "".join(['<line x1="{0[0][0]}" y1="{0[0][1]}" x2="{0[1][0]}" y2="{0[1][1]}" style="stroke:rgb({1[0]},{1[1]},{1[2]});stroke-width:{2}" />\n'.format([(scale * (xdiff + v[0]), scale * (ydiff + v[2])) for v in e],[int(255 * lc) for lc in lcol], lthick) for e in etlist[vci]])
+
+                    elif cutdir == 'ry':
+
+                        notch = svg2uv("C:\Program Files\\Blender Foundation\\Blender 2.81\\2.81\\scripts\\addons\\Stickers\\lnotch.svg")
+                        notch_scale = scale/10000
+                        notch_length = 0
+                        for e in notch:
+                            if e['x1'] > notch_length:
+                                notch_length = e['x1']
+                            if e['x2'] > notch_length:
+                                notch_length = e['x2']
+                        notch_length *= notch_scale
+
+
+                        slice_height = 0
+                        start_height = 10000
+                        for e in etlist[vci]:
+                            for v in e:
+                                if v[2] > slice_height:
+                                    slice_height = v[2]
+                                if(v[2] < start_height):
+                                    start_height = v[2]
+
+                        print("HEIGHT"+str(slice_height))
+
+
+                        svgtext += "".join([
+                            '<line x1="{0[0][0]}" y1="{0[0][1]}" x2="{0[1][0]}" y2="{0[1][1]}" style="stroke:rgb({1[0]},{1[1]},{1[2]});stroke-width:{2}" />\n'.format(
+                                [
+                                    (scale * (xdiff + v[0]), scale * (ydiff + v[2])) for v in e],
+                                [int(255 * lc) for lc in lcol], lthick) for e in etlist[vci]])
+
+                        for i in range(1, settings.num_slices): 
+                            left_edge = etlist[vci][0]
+                            for e in etlist[vci]:
+                                if e[0][0] < left_edge[0][0]:
+                                    left_edge = e
+                                    print(left_edge[0][0])
+
+                            svgtext += "".join([
+                                                   '<line x1="{0[0][0]}" y1="{0[0][1]}" x2="{0[0][2]}" y2="{0[0][3]}"  style="stroke:rgb(0,0,0);stroke-width:1" />\n'.format(
+                                                       [(notch_scale * (v['x1']) + (xdiff + left_edge[0][0]) * scale,
+                                                         notch_scale * (v['y1']) + (ydiff*(i/settings.num_slices)+(i*slice_height/settings.num_slices)) * scale,
+                                                         notch_scale * (v['x2']) + (xdiff + left_edge[0][0] ) * scale,
+                                                         notch_scale * (v['y2']) + (ydiff*(i/settings.num_slices)+(i*slice_height/settings.num_slices)) * scale)]) for v in notch])
+
+
+
+
+
+
+                    elif cutdir == 'ly':
+
+                        notch = svg2uv(
+                            "C:\Program Files\\Blender Foundation\\Blender 2.81\\2.81\\scripts\\addons\\Stickers\\rnotch.svg")
+                        notch_scale = scale / 10000
+                        notch_length = 0
+                        for e in notch:
+                            if e['x1'] > notch_length:
+                                notch_length = e['x1']
+                            if e['x2'] > notch_length:
+                                notch_length = e['x2']
+                        notch_length *= notch_scale
+
+                        slice_height = 0
+                        start_height = 10000
+                        for e in etlist[vci]:
+                            for v in e:
+                                if v[2] > slice_height:
+                                    slice_height = v[2]
+                                if(v[2] < start_height):
+                                    start_height = v[2]
+
+
+                        print("HEIGHT"+str(slice_height))
+
+                        right_edge = etlist[vci][0]
+                        for e in etlist[vci]:
+                            if e[0][0] > right_edge[0][0]:
+                                right_edge = e
+                                print(right_edge[0])
+
+                        svgtext += "".join([
+                            '<line x1="{0[0][0]}" y1="{0[0][1]}" x2="{0[1][0]}" y2="{0[1][1]}" style="stroke:rgb({1[0]},{1[1]},{1[2]});stroke-width:{2}" />\n'.format(
+                                [
+                                    (scale * (xdiff + v[0]), scale * (ydiff + v[2])) for v in e],
+                                [int(255 * lc) for lc in lcol], lthick) for e in etlist[vci]])
+
+                        for i in range(1, settings.num_slices):
+                            svgtext += "".join(['<line x1="{0[0][0]}" y1="{0[0][1]}" x2="{0[0][2]}" y2="{0[0][3]}"  style="stroke:rgb(0,0,0);stroke-width:1" />\n'.format(
+                            [(notch_scale * (v['x1']) + (xdiff + right_edge[0][0]) * scale - notch_length,
+                              notch_scale * ( v['y1']) + (ydiff*(i/settings.num_slices)+(i*slice_height/settings.num_slices)) * scale,
+                              notch_scale * (v['x2']) + (xdiff + right_edge[0][0]) * scale - notch_length,
+                              notch_scale * ( v['y2']) + (ydiff*(i/settings.num_slices)+(i*slice_height/settings.num_slices)) * scale)]) for v in notch])
+
+
+
+
+
 
                     svgtext += '</g>\n'
             # else:
@@ -383,7 +671,7 @@ class OBJECT_PT_Laser_Slicer_Panel(bpy.types.Panel):
         newrow(layout, "Thickness (pixels):", scene.slicer_settings, 'laser_slicer_cut_line')
         newrow(layout, "Separate files:", scene.slicer_settings, 'laser_slicer_separate_files')
         newrow(layout, "Direction:", scene.slicer_settings, 'direction')
-
+        newrow(layout, "Number of Slices:", scene.slicer_settings, 'num_slices')
 
         if scene.slicer_settings.laser_slicer_separate_files:
             newrow(layout, "Cut position:", scene.slicer_settings, 'laser_slicer_svg_position')
@@ -394,26 +682,17 @@ class OBJECT_PT_Laser_Slicer_Panel(bpy.types.Panel):
 
         if context.active_object and context.active_object.select_get() and context.active_object.type == 'MESH' and context.active_object.data.polygons:
             row = layout.row()
-
             cutdir = scene.slicer_settings.direction
-            if cutdir == 'z':
-                num_slices = context.active_object.dimensions[2] * 1000 * context.scene.unit_settings.scale_length/scene.slicer_settings.laser_slicer_material_thick
-                row.label(text = 'No. of slices : {:.0f}'.format(num_slices))
-            if cutdir == 'x':
-                num_slices = context.active_object.dimensions[0] * 1000 * context.scene.unit_settings.scale_length/scene.slicer_settings.laser_slicer_material_thick
-                row.label(text = 'No. of slices : {:.0f}'.format(num_slices))
-            if cutdir == 'y':
-                num_slices = context.active_object.dimensions[1] * 1000 * context.scene.unit_settings.scale_length / scene.slicer_settings.laser_slicer_material_thick
-                row.label(text='No. of slices : {:.0f}'.format(num_slices))
+            num_slices = scene.slicer_settings.num_slices
 
             if bpy.data.filepath or context.scene.slicer_settings.laser_slicer_ofile:
                 split = layout.split()
                 col = split.column()
                 col.operator("object.laser_slicer", text="Slice the object")
 
-
-    direction: StringProperty(name="", description="Axis along which to cut", default='z')
-
+class Slicer_Settings(bpy.types.PropertyGroup):
+    direction: StringProperty(name="", description="Axis along which to cut", default='rz')
+    num_slices: IntProperty(name="", description="number of slices", min=1, max=500, default=10)
     laser_slicer_material_thick: FloatProperty(
          name="", description="Thickness of the cutting material in mm",
              min=0.1, max=50, default=2)
@@ -449,4 +728,5 @@ def unregister():
     
     for cl in classes:
         bpy.utils.unregister_class(cl)
+
 
