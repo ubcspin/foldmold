@@ -546,16 +546,25 @@ class Mesh:
             rot = M.Matrix.Rotation(angle, 2)
             for point in points:
                 # note: we need an in-place operation, and Vector.rotate() seems to work for 3d vectors only
-                point[:] = rot @ point
+                if(point.x != 600):
+                    point[:] = rot @ point
             for marker in island.markers:
                 marker.rot = rot @ marker.rot
-            bottom_left = M.Vector((min(v.x for v in points), min(v.y for v in points) - title_height))
+
+
+            points_c = points.copy()
+            for p in points_c:
+                if(p.x == 600):
+                    points_c.remove(p)
             # DEBUG
-            top_right = M.Vector((max(v.x for v in points), max(v.y for v in points) - title_height))
+            top_right = M.Vector((max(v.x for v in points_c), max(v.y for v in points_c) - title_height))
+            bottom_left = M.Vector((min(v.x for v in points_c), min(v.y for v in points_c) - title_height))
             # print(f"fitted aspect: {(top_right.y - bottom_left.y) / (top_right.x - bottom_left.x)}")
-            for point in points:
+            for point in points_c:
                 point -= bottom_left
-            island.bounding_box = M.Vector((max(v.x for v in points), max(v.y for v in points)))
+
+            island.bounding_box = M.Vector((max(v.x for v in points_c), max(v.y for v in points_c)))
+            print(island.bounding_box)
 
     def largest_island_ratio(self, cage_size):
         return max(i / p for island in self.islands for (i, p) in zip(island.bounding_box, cage_size))
@@ -604,6 +613,7 @@ class Mesh:
             return [stop for stop, distance in zip(stops, chain([quantile], distances)) if distance >= quantile]
 
         if any(island.bounding_box.x > cage_size.x or island.bounding_box.y > cage_size.y for island in self.islands):
+            print(cage_size)
             raise UnfoldError(
                 "An island is too big to fit onto page of the given size. "
                 "Either downscale the model or find and split that island manually.\n"
@@ -837,7 +847,8 @@ class Island:
         page_size: size of the page in pixels (vector)"""
         scale_x, scale_y = 1 / cage_size.x, 1 / cage_size.y
         for loop, uvvertex in self.vertices.items():
-            uv = uvvertex.co + self.pos
+            if not(uvvertex.co.x == 1.0):
+                uv = uvvertex.co + self.pos
             loop[tex].uv = uv.x * scale_x, uv.y * scale_y
 
     def save_uv_separate(self, tex):
@@ -987,7 +998,7 @@ def join(uvedge_a, uvedge_b, size_limit=None, epsilon=1e-6):
         rot = fitting_matrix(flip @ (first_b.co - second_b.co), uvedge_a.vb.co - uvedge_a.va.co) @ flip
     trans = uvedge_a.vb.co - rot @ first_b.co
     # preview of island_b's vertices after the join operation
-    phantoms = {uvvertex: UVVertex(rot @ uvvertex.co + trans) for uvvertex in island_b.vertices.values()}
+    phantoms = {uvvertex: UVVertex(rot @ uvvertex.co + trans) for uvvertex in island_b.vertices.values() if not(uvvertex.co.x == 1.0)}
 
     # check the size of the resulting island
     if size_limit:
@@ -1273,7 +1284,9 @@ def svg2uv(path):
 
     for p in polylines:
         points = p.attrib['points']
+        points += " 600,600"
         polyline_vectors += vectorize_polylines(points)
+        # polyline_vectors += vectorize_polylines("600,600") #delimiter
     for v in polyline_vectors:
         makeUVVertices(v)
 
@@ -1317,7 +1330,10 @@ def vectorize_polylines(points):
 
 
 def makeUVVertices(v):
-    v1 = UVVertex(M.Vector((v["x1"], v["y1"])) * 0.00001)  # scaling down to avoid overflow
+    if not (v["x1"] == 600.0):
+        v1 = UVVertex(M.Vector((v["x1"], v["y1"])) * 0.00001)  # scaling down to avoid overflow
+    else:
+        v1 = UVVertex(M.Vector((v["x1"], v["y1"]))  )  # scaling down to avoid overflow
 
     vertices.append(v1)
 
@@ -1347,7 +1363,7 @@ class Gap:
 
         def getWidth():
             # get bounding box of geometry
-            return  0.005
+            return  0.003
 
         self.geometry = load_geometry()
         self.width = getWidth()
@@ -1414,7 +1430,7 @@ class Hole:
 
         def getWidth():
             # get bounding box of geometry
-            return 0.005 # stub
+            return 0.003 # stub
 
         self.geometry = load_geometry()
         self.width = getWidth()
@@ -1427,7 +1443,7 @@ class Connector:
 
         def getWidth():
             # get bounding box of geometry
-            return  0.005
+            return  0.003
 
         self.geometry = load_geometry()
         self.width = getWidth()
@@ -1441,7 +1457,7 @@ class Pin:
 
         def getWidth():
             # get bounding box of geometry
-            return  0.005
+            return  0.003
 
         self.geometry = load_geometry()
         self.width = getWidth()
@@ -1493,7 +1509,11 @@ class PinSticker:
         tab = self.pattern.getGeometry()
         for n in range(0, midsection_count):
             for i in range(len(tab)):
-                vi = UVVertex((tab[i].co) + M.Vector((self.pattern.width * n + offset_left, 0)))
+                if not(tab[i].co.x == 600):
+                    vi = UVVertex((tab[i].co) + M.Vector((self.pattern.width * n + offset_left, 0)))
+                else:
+                    vi = UVVertex((tab[i].co))
+
                 tab_verts.insert(len(tab_verts), vi)
                 tab_verts_co.insert(len(tab_verts), vi.co)
 
@@ -1559,12 +1579,15 @@ class Sticker:
 
         self.width = sticker_width
 
-        sawtooth = SawtoothSticker(uvedge, default_width, index, other, isreversed)
+        sawtooth = PinSticker(uvedge, default_width, index, other, isreversed)
 
         tab_verts = []
         tab_verts_co = []
         for i in range(len(sawtooth.geometry)):
-            vi = UVVertex((second_vertex.co + self.rot @ sawtooth.geometry_co[i]))
+            if not(sawtooth.geometry_co[i][0] == 600):
+                vi = UVVertex((second_vertex.co + self.rot @ sawtooth.geometry_co[i]))
+            else:
+                vi = UVVertex(( sawtooth.geometry_co[i]))
             tab_verts.insert(len(tab_verts), vi)
             tab_verts_co.insert(len(tab_verts), vi.co)
 
@@ -1578,7 +1601,7 @@ class Sticker:
         # if index and uvedge.uvface.island is not other.uvface.island:
         #     self.text = "{}:{}".format(other.uvface.island.abbreviation, index)
         # else:
-        self.text = index
+        self.text = ""
 
         self.center = (uvedge.va.co + uvedge.vb.co) / 2
         self.bounds = tab_verts_co
@@ -1632,7 +1655,7 @@ class SVG:
 
     def write(self, mesh, filename):
         """Write data to a file given by its name."""
-        line_through = " L ".join  # used for formatting of SVG path data
+        line_through_simple = " L ".join  # used for formatting of SVG path data
         rows = "\n".join
 
         dl = ["{:.2f}".format(length * self.style.line_width * 1000) for length in (2, 5, 10)]
@@ -1721,7 +1744,7 @@ class SVG:
                     for marker in island.markers:
                         if isinstance(marker, Sticker):
                             data_stickerfill.append("M {} Z".format(
-                                line_through(self.format_vertex(vertex.co, island.pos) for vertex in marker.vertices)))
+                                line_through_sticker(self.format_vertex(vertex.co, island.pos)  for vertex in marker.vertices)))
                             if marker.text:
                                 data_markers.append(self.text_transformed_tag.format(
                                     label=marker.text,
@@ -1762,7 +1785,7 @@ class SVG:
                                 outer_edges.remove(uvedge)
                             except KeyError:
                                 break
-                        data_outer.append("M {} Z".format(line_through(data_loop)))
+                        data_outer.append("M {} Z".format(line_through_simple(data_loop)))
 
                     visited_edges = set()
                     for loop, uvedge in island.edges.items():
@@ -1770,7 +1793,7 @@ class SVG:
                         if edge.is_cut(uvedge.uvface.face) and not uvedge.sticker:
                             continue
                         data_uvedge = "M {}".format(
-                            line_through(
+                            line_through_simple(
                                 self.format_vertex(vertex.co, island.pos) for vertex in (uvedge.va, uvedge.vb)))
                         if edge.freestyle:
                             data_freestyle.append(data_uvedge)
@@ -1923,9 +1946,32 @@ class PDF:
             return "<< " + "".join(
                 "/{} {}\n".format(key, format_value(value, refs)) for (key, value) in obj.items()) + ">>"
 
-        def line_through(seq):
+        def line_through_simple(seq):
+
             return "".join(
                 "{0.x:.6f} {0.y:.6f} {1} ".format(1000 * v.co, c) for (v, c) in zip(seq, chain("m", repeat("l"))))
+
+
+        def line_through_sticker(seq):
+            lists = list()
+            curr = list()
+            for point in seq:
+                print("POINT = ")
+                print(point.co)
+                if(point.co.x == 600):
+                    lists.append(curr)
+                    curr = list()
+                    print("DELIM")
+                else:
+                    curr.append(point)
+            lists.append(curr)
+
+            finalstring = ""
+            for sublist in lists:
+                finalstring +=  "".join(
+                    "{0.x:.6f} {0.y:.6f} {1} ".format(1000 * v.co, c) for (v, c) in zip(sublist, chain("m", repeat("l"))))
+
+            return finalstring
 
         def format_value(value, refs=tuple()):
             if value in refs:
@@ -2020,7 +2066,7 @@ class PDF:
                                                                                                          range(6))
                 for marker in island.markers:
                     if isinstance(marker, Sticker):
-                        data_stickerfill.append(line_through(marker.vertices) + "f")
+                        data_stickerfill.append(line_through_sticker(marker.vertices))
                         if marker.text:
                             data_markers.append(self.command_sticker.format(
                                 label=marker.text,
@@ -2059,13 +2105,13 @@ class PDF:
                             outer_edges.remove(uvedge)
                         except KeyError:
                             break
-                    data_outer.append(line_through(data_loop) + "s")
+                    data_outer.append(line_through_sticker(data_loop) + "s")
 
                 for loop, uvedge in island.edges.items():
                     edge = mesh.edges[loop.edge]
                     if edge.is_cut(uvedge.uvface.face) and not uvedge.sticker:
                         continue
-                    data_uvedge = line_through((uvedge.va, uvedge.vb)) + "S"
+                    data_uvedge = line_through_simple((uvedge.va, uvedge.vb)) + "S"
                     if edge.freestyle:
                         data_freestyle.append(data_uvedge)
                     # each uvedge exists in two opposite-oriented variants; we want to add each only once
