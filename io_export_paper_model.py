@@ -50,6 +50,7 @@ from re import compile as re_compile
 from itertools import chain, repeat, product, combinations
 from math import pi, ceil, asin, atan2, floor
 import os.path as os_path
+import sys
 import logging
 from lxml import etree
 import re
@@ -1230,8 +1231,17 @@ class Arrow:
 
 
 # /////////////////////////////////////////////////////////////////////////////////////////////////////////////
+path_to_stickers_mac = "/Applications/Blender.app/Contents/Resources/2.82/scripts/addons/Stickers/"
+path_to_stickers_win = "C:\Program Files\\Blender Foundation\\Blender 2.81\\2.81\\scripts\\addons\\Stickers\\"
 
-the_path = "Stickers/tooth-pulltab.svg"
+if sys.platform.startswith('win32'):
+    path_to_stickers = path_to_stickers_win
+elif sys.platform.startswith('darwin'):
+    path_to_stickers = path_to_stickers_mac
+else:
+    raise ValueError('Please add path for system other than windows or osx')
+
+
 logger = logging.getLogger(__name__)
 ns = {"u": "http://www.w3.org/2000/svg"}
 
@@ -1247,7 +1257,6 @@ def load_svg(path):
         logger.error("Failed to load input file! (%s)" % exc)
     else:
         return svg_root
-
 
 def svg2uv(path):
     vertices.clear()
@@ -1321,7 +1330,7 @@ class Tooth:
     def __init__(self):
 
         def load_geometry():
-            return svg2uv("C:\Program Files\\Blender Foundation\\Blender 2.81\\2.81\\scripts\\addons\\Stickers\\tooth.svg")
+            return svg2uv(os_path.join(path_to_stickers, "tooth.svg"))
 
         def getWidth():
             # get bounding box of geometry
@@ -1334,7 +1343,7 @@ class Gap:
     def __init__(self):
 
         def load_geometry():
-            return svg2uv("C:\Program Files\\Blender Foundation\\Blender 2.81\\2.81\\scripts\\addons\\Stickers\\gap.svg")
+            return svg2uv(os_path.join(path_to_stickers, "gap.svg"))
 
         def getWidth():
             # get bounding box of geometry
@@ -1401,7 +1410,7 @@ class Hole:
     def __init__(self):
 
         def load_geometry():
-            return svg2uv("C:\Program Files\\Blender Foundation\\Blender 2.81\\2.81\\scripts\\addons\\Stickers\\hole.svg")
+            return svg2uv(os_path.join(path_to_stickers,"hole.svg"))
 
         def getWidth():
             # get bounding box of geometry
@@ -1414,7 +1423,7 @@ class Connector:
     def __init__(self):
 
         def load_geometry():
-            return svg2uv("C:\Program Files\\Blender Foundation\\Blender 2.81\\2.81\\scripts\\addons\\Stickers\\gap2.svg")
+            return svg2uv(os_path.join(path_to_stickers,"gap2.svg"))
 
         def getWidth():
             # get bounding box of geometry
@@ -1428,7 +1437,7 @@ class Pin:
     def __init__(self):
 
         def load_geometry():
-            return svg2uv("C:\Program Files\\Blender Foundation\\Blender 2.81\\2.81\\scripts\\addons\\Stickers\\pin.svg")
+            return svg2uv(os_path.join(path_to_stickers,"pin.svg"))
 
         def getWidth():
             # get bounding box of geometry
