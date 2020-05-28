@@ -542,21 +542,21 @@ class Mesh:
             if title_height:
                 island.title = "[{}] {}".format(island.abbreviation, island.label)
             points = [vertex.co for vertex in set(island.vertices.values())] + island.fake_vertices
-            angle, _ = cage_fit(points, (cage_size.y - title_height) / cage_size.x)
+
+
+            points_c = list()
+            for p in points:
+                if(p.x != 0.5):
+                    points_c.append(p)
+            # DEBUG
+            angle, _ = cage_fit(points_c, (cage_size.y - title_height) / cage_size.x)
             rot = M.Matrix.Rotation(angle, 2)
             for point in points:
                 # note: we need an in-place operation, and Vector.rotate() seems to work for 3d vectors only
-                if(point.x != 600):
+                if(point.x != 0.5):
                     point[:] = rot @ point
             for marker in island.markers:
                 marker.rot = rot @ marker.rot
-
-
-            points_c = points.copy()
-            for p in points_c:
-                if(p.x == 600):
-                    points_c.remove(p)
-            # DEBUG
             top_right = M.Vector((max(v.x for v in points_c), max(v.y for v in points_c) - title_height))
             bottom_left = M.Vector((min(v.x for v in points_c), min(v.y for v in points_c) - title_height))
             # print(f"fitted aspect: {(top_right.y - bottom_left.y) / (top_right.x - bottom_left.x)}")
@@ -847,7 +847,7 @@ class Island:
         page_size: size of the page in pixels (vector)"""
         scale_x, scale_y = 1 / cage_size.x, 1 / cage_size.y
         for loop, uvvertex in self.vertices.items():
-            if not(uvvertex.co.x == 1.0):
+            if not(uvvertex.co.x == 0.5):
                 uv = uvvertex.co + self.pos
             loop[tex].uv = uv.x * scale_x, uv.y * scale_y
 
@@ -998,7 +998,7 @@ def join(uvedge_a, uvedge_b, size_limit=None, epsilon=1e-6):
         rot = fitting_matrix(flip @ (first_b.co - second_b.co), uvedge_a.vb.co - uvedge_a.va.co) @ flip
     trans = uvedge_a.vb.co - rot @ first_b.co
     # preview of island_b's vertices after the join operation
-    phantoms = {uvvertex: UVVertex(rot @ uvvertex.co + trans) for uvvertex in island_b.vertices.values() if not(uvvertex.co.x == 1.0)}
+    phantoms = {uvvertex: UVVertex(rot @ uvvertex.co + trans) for uvvertex in island_b.vertices.values()}
 
     # check the size of the resulting island
     if size_limit:
@@ -1284,7 +1284,7 @@ def svg2uv(path):
 
     for p in polylines:
         points = p.attrib['points']
-        points += " 600,600"
+        points += " 0.5,0.5"
         polyline_vectors += vectorize_polylines(points)
         # polyline_vectors += vectorize_polylines("600,600") #delimiter
     for v in polyline_vectors:
@@ -1330,7 +1330,7 @@ def vectorize_polylines(points):
 
 
 def makeUVVertices(v):
-    if not (v["x1"] == 600.0):
+    if not (v["x1"] == 0.5):
         v1 = UVVertex(M.Vector((v["x1"], v["y1"])) * 0.00001)  # scaling down to avoid overflow
     else:
         v1 = UVVertex(M.Vector((v["x1"], v["y1"]))  )  # scaling down to avoid overflow
@@ -1426,7 +1426,7 @@ class Hole:
     def __init__(self):
 
         def load_geometry():
-            return svg2uv(os_path.join(path_to_stickers,"hole.svg"))
+            return svg2uv(os_path.join(path_to_stickers_win,"hole.svg"))
 
         def getWidth():
             # get bounding box of geometry
@@ -1439,7 +1439,7 @@ class Connector:
     def __init__(self):
 
         def load_geometry():
-            return svg2uv(os_path.join(path_to_stickers,"gap2.svg"))
+            return svg2uv(os_path.join(path_to_stickers_win,"gap2.svg"))
 
         def getWidth():
             # get bounding box of geometry
@@ -1453,7 +1453,7 @@ class Pin:
     def __init__(self):
 
         def load_geometry():
-            return svg2uv(os_path.join(path_to_stickers,"pin.svg"))
+            return svg2uv(os_path.join(path_to_stickers_win,"pin.svg"))
 
         def getWidth():
             # get bounding box of geometry
@@ -1509,7 +1509,7 @@ class PinSticker:
         tab = self.pattern.getGeometry()
         for n in range(0, midsection_count):
             for i in range(len(tab)):
-                if not(tab[i].co.x == 600):
+                if not(tab[i].co.x == 0.5):
                     vi = UVVertex((tab[i].co) + M.Vector((self.pattern.width * n + offset_left, 0)))
                 else:
                     vi = UVVertex((tab[i].co))
@@ -1584,7 +1584,7 @@ class Sticker:
         tab_verts = []
         tab_verts_co = []
         for i in range(len(sawtooth.geometry)):
-            if not(sawtooth.geometry_co[i][0] == 600):
+            if not(sawtooth.geometry_co[i][0] == 0.5):
                 vi = UVVertex((second_vertex.co + self.rot @ sawtooth.geometry_co[i]))
             else:
                 vi = UVVertex(( sawtooth.geometry_co[i]))
@@ -1958,7 +1958,7 @@ class PDF:
             for point in seq:
                 print("POINT = ")
                 print(point.co)
-                if(point.co.x == 600):
+                if(point.co.x == 0.5):
                     lists.append(curr)
                     curr = list()
                     print("DELIM")
