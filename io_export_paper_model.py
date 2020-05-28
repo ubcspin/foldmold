@@ -733,6 +733,9 @@ class Edge:
         faces = edge.link_faces
         if(faces[0].smooth and faces[1].smooth):
             self.is_kerf = True
+
+            for uv in self.uvedges:
+                uv.is_kerf = True
             print("TRUEEEE")
         else:
             self.is_kerf = False
@@ -1169,15 +1172,16 @@ class UVEdge:
     # UVEdges are doubled as needed because they both have to point clockwise around their faces
     __slots__ = ('va', 'vb', 'uvface', 'loop',
                  'min', 'max', 'bottom', 'top',
-                 'neighbor_left', 'neighbor_right', 'sticker')
+                 'neighbor_left', 'neighbor_right', 'sticker', 'is_kerf')
 
-    def __init__(self, vertex1: UVVertex, vertex2: UVVertex, uvface, loop):
+    def __init__(self, vertex1: UVVertex, vertex2: UVVertex, uvface, loop, is_kerf):
         self.va = vertex1
         self.vb = vertex2
         self.update()
         self.uvface = uvface
         self.sticker = None
         self.loop = loop
+        self.is_kerf = is_kerf
 
     def update(self):
         """Update data if UVVertices have moved"""
@@ -1220,7 +1224,7 @@ class UVFace:
 
         flatten = z_up_matrix(normal_matrix @ face.normal) @ matrix
         self.vertices = {loop: UVVertex(flatten @ loop.vert.co) for loop in face.loops}
-        self.edges = {loop: UVEdge(self.vertices[loop], self.vertices[loop.link_loop_next], self, loop) for loop in
+        self.edges = {loop: UVEdge(self.vertices[loop], self.vertices[loop.link_loop_next], self, loop, self.face.smooth) for loop in
                       face.loops}
 
 
@@ -1413,7 +1417,10 @@ class SawtoothSticker:
         tab = self.pattern.getGeometry()
         for n in range(0, midsection_count):
             for i in range(len(tab)):
-                vi = UVVertex((tab[i].co) + M.Vector((self.pattern.width * n + offset_left, 0)))
+                if not(tab[i].co.x == 0.5):
+                    vi = UVVertex((tab[i].co) + M.Vector((self.pattern.width * n + offset_left, 0)))
+                else:
+                    vi = UVVertex((tab[i].co))
                 tab_verts.insert(len(tab_verts), vi)
                 tab_verts_co.insert(len(tab_verts), vi.co)
 
@@ -1579,8 +1586,10 @@ class Sticker:
 
         self.width = sticker_width
 
-        sawtooth = PinSticker(uvedge, default_width, index, other, isreversed)
-
+        if(uvedge.is_kerf):
+            sawtooth = PinSticker(uvedge, default_width, index, other, isreversed)
+        else:
+            sawtooth = SawtoothSticker(uvedge, default_width, index, other, isreversed)
         tab_verts = []
         tab_verts_co = []
         for i in range(len(sawtooth.geometry)):
