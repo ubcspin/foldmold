@@ -367,6 +367,14 @@ class Mesh:
             "The offenders are selected and you can use {} to fix them. Export failed.".format(cure),
             {"verts": set(), "edges": null_edges, "faces": null_faces | twisted_faces}, self.data)
 
+
+    def add_hole(self, uvface):
+
+        uvedge = uvface.uvedges[1]
+
+        uvedge.pourhole = PourHole(uvedge)
+        uvedge.uvface.island.add_marker(uvedge.pourhole)
+
     def generate_cuts(self, page_size, priority_effect):
         """Cut the mesh so that it can be unfolded to a flat net."""
         normal_matrix = self.matrix.inverted().transposed()
@@ -393,6 +401,8 @@ class Mesh:
                     islands.remove(old_island)
 
         self.islands = sorted(islands, reverse=True, key=lambda island: len(island.faces))
+
+
 
         for edge in self.edges.values():
             # some edges did not know until now whether their angle is convex or concave
@@ -461,6 +471,7 @@ class Mesh:
                         else zip([uvedges[-1]] + uvedges[1::2], uvedges[:-1:2])):
                     left.neighbor_right = right
                     right.neighbor_left = left
+
         return True
 
     def generate_stickers(self, default_width, do_create_numbers=True):
@@ -508,11 +519,25 @@ class Mesh:
                         # target_island.add_marker(Arrow(target, default_width, index))
                         break
                 add_sticker(source, index, target, False)
-            # elif len(edge.uvedges) > 2:
-            #     target = edge.uvedges[0]
-            # if len(edge.uvedges) > 2:
-            #     for source in edge.uvedges[2:]:
-            #         add_sticker(source, index, target, False)
+
+
+        islands = self.islands
+        uvfaces = {face: uvface for island in islands for face, uvface in island.faces.items()}
+
+        up_vector = M.Vector((0, 0, 1))
+        toppestface = None
+        toppestuvface = None
+        for face, uvface in uvfaces.items():
+            if( not toppestface):
+                toppestface = face
+                toppestuvface = uvface
+
+            if((face.normal-up_vector).length < (toppestface.normal-up_vector).length):
+                toppestface = face
+                toppestuvface = uvface
+        self.add_hole(toppestuvface)
+
+
 
 
     def generate_numbers_alone(self, size):
@@ -1172,7 +1197,7 @@ class UVEdge:
     # UVEdges are doubled as needed because they both have to point clockwise around their faces
     __slots__ = ('va', 'vb', 'uvface', 'loop',
                  'min', 'max', 'bottom', 'top',
-                 'neighbor_left', 'neighbor_right', 'sticker', 'is_kerf')
+                 'neighbor_left', 'neighbor_right', 'sticker', 'is_kerf', 'pourhole')
 
     def __init__(self, vertex1: UVVertex, vertex2: UVVertex, uvface, loop, is_kerf):
         self.va = vertex1
@@ -1182,6 +1207,7 @@ class UVEdge:
         self.sticker = None
         self.loop = loop
         self.is_kerf = is_kerf
+        self.pourhole = None
 
     def update(self):
         """Update data if UVVertices have moved"""
@@ -1215,7 +1241,7 @@ class PhantomUVEdge:
 
 class UVFace:
     """Face in 2D"""
-    __slots__ = ('vertices', 'edges', 'face', 'island', 'flipped')
+    __slots__ = ('vertices', 'edges', 'face', 'island', 'flipped', 'uvedges')
 
     def __init__(self, face: bmesh.types.BMFace, island: Island, matrix=1, normal_matrix=1):
         self.face = face
@@ -1226,6 +1252,8 @@ class UVFace:
         self.vertices = {loop: UVVertex(flatten @ loop.vert.co) for loop in face.loops}
         self.edges = {loop: UVEdge(self.vertices[loop], self.vertices[loop.link_loop_next], self, loop, self.face.smooth) for loop in
                       face.loops}
+        self.uvedges = [UVEdge(self.vertices[loop], self.vertices[loop.link_loop_next], self, loop, self.face.smooth) for loop in
+                      face.loops]
 
 
 class Arrow:
@@ -1433,7 +1461,7 @@ class Hole:
     def __init__(self):
 
         def load_geometry():
-            return svg2uv(os_path.join(path_to_stickers_win,"hole.svg"))
+            return svg2uv(os_path.join(path_to_stickers,"hole.svg"))
 
         def getWidth():
             # get bounding box of geometry
@@ -1446,7 +1474,7 @@ class Connector:
     def __init__(self):
 
         def load_geometry():
-            return svg2uv(os_path.join(path_to_stickers_win,"gap2.svg"))
+            return svg2uv(os_path.join(path_to_stickers,"gap2.svg"))
 
         def getWidth():
             # get bounding box of geometry
@@ -1460,7 +1488,7 @@ class Pin:
     def __init__(self):
 
         def load_geometry():
-            return svg2uv(os_path.join(path_to_stickers_win,"pin.svg"))
+            return svg2uv(os_path.join(path_to_stickers,"pin.svg"))
 
         def getWidth():
             # get bounding box of geometry
@@ -1484,6 +1512,28 @@ class PinPattern:
             self.tileset = [Hole(), Connector()]
         else:
             self.tileset = [Pin(), Gap()]
+        self.width = getWidth(self.tileset)
+
+
+    def getGeometry(self):
+        vertices = []
+        for tile in self.tileset:
+            for vi in tile.geometry:
+                vertices.insert(len(vertices), vi)
+
+        return vertices
+
+class PourHolePattern:
+    __slots__ = ("tileset", "width")
+    def __init__(self):
+        def getWidth(tileset):
+            width = 0
+            for tile in tileset:
+                width += tile.width
+            return width
+
+
+        self.tileset = [Tooth()]
         self.width = getWidth(self.tileset)
 
 
@@ -1526,6 +1576,8 @@ class PinSticker:
 
         print(offset_left)
         return tab_verts, tab_verts_co
+
+
 
 class Sticker:
     """Mark in the document: sticker tab"""
@@ -1610,6 +1662,88 @@ class Sticker:
         # if index and uvedge.uvface.island is not other.uvface.island:
         #     self.text = "{}:{}".format(other.uvface.island.abbreviation, index)
         # else:
+        self.text = ""
+
+        self.center = (uvedge.va.co + uvedge.vb.co) / 2
+        self.bounds = tab_verts_co
+        self.bounds.insert(len(tab_verts_co), self.center)
+
+class PourHoleSticker:
+    __slots__ = ('bounds', 'center', 'rot', 'text', 'width', 'vertices', "pattern", "geometry", "geometry_co")
+
+    def __init__(self, uvedge):
+        first_vertex, second_vertex = (uvedge.va, uvedge.vb) if not uvedge.uvface.flipped else (uvedge.vb, uvedge.va)
+        edge = first_vertex.co - second_vertex.co
+        self.width = edge.length
+        self.pattern = PourHolePattern()
+        midsection_count = 1
+        midsection_width = self.pattern.width * midsection_count
+        offset_left = (self.width - midsection_width) / 2
+        offset_right = (self.width - midsection_width) / 2
+        self.geometry, self.geometry_co = self.construct(offset_left, midsection_count, self.pattern)
+
+    def construct(self, offset_left, midsection_count, pattern):
+        tab_verts = []
+        tab_verts_co = []
+        tab = self.pattern.getGeometry()
+        for n in range(0, midsection_count):
+            for i in range(len(tab)):
+                if not(tab[i].co.x == 0.5):
+                    vi = UVVertex((tab[i].co) + M.Vector((self.pattern.width * n + offset_left, 0)))
+                else:
+                    vi = UVVertex((tab[i].co))
+
+                tab_verts.insert(len(tab_verts), vi)
+                tab_verts_co.insert(len(tab_verts), vi.co)
+
+        print(offset_left)
+        return tab_verts, tab_verts_co
+class PourHole:
+    """Mark in the document: sticker tab"""
+    __slots__ = ('bounds', 'center', 'rot', 'text', 'width', 'vertices')
+
+    def __init__(self, uvedge):
+        first_vertex, second_vertex = (uvedge.va, uvedge.vb)
+        edge = first_vertex.co - second_vertex.co
+        sticker_width = edge.length / 2
+
+        cos_a = cos_b = 0.5
+        sin_a = sin_b = 0.75 ** 0.5
+        # len_a is length of the side adjacent to vertex a, len_b likewise
+        len_a = len_b = sticker_width / sin_a
+
+
+        # Calculate the lengths of the glue tab edges using the possibly smaller angles
+        sin_a = abs(1 - cos_a ** 2) ** 0.5
+        len_b = min(len_a, (edge.length * sin_a) / (sin_a * cos_b + sin_b * cos_a))
+        len_a = 0 if sin_a == 0 else min(sticker_width / sin_a, (edge.length - len_b * cos_b) / cos_a)
+
+        sin_b = abs(1 - cos_b ** 2) ** 0.5
+        len_a = min(len_a, (edge.length * sin_b) / (sin_a * cos_b + sin_b * cos_a))
+        len_b = 0 if sin_b == 0 else min(sticker_width / sin_b, (edge.length - len_a * cos_a) / cos_b)
+
+        tangent = edge.normalized() #this is a Vector
+        cos = tangent.x
+        sin = tangent.y
+        print("phphphphphphphphphphphphphphphphphph")
+
+        self.rot = M.Matrix(((cos, -sin), (sin, cos)))
+
+        self.width = sticker_width
+        sawtooth = PourHoleSticker(uvedge)
+        tab_verts = []
+        tab_verts_co = []
+        for i in range(len(sawtooth.geometry)):
+            if not(sawtooth.geometry_co[i][0] == 0.5):
+                vi = UVVertex((first_vertex.co - self.rot @ sawtooth.geometry_co[i]))
+            else:
+                vi = UVVertex(( sawtooth.geometry_co[i]))
+            tab_verts.insert(len(tab_verts), vi)
+            tab_verts_co.insert(len(tab_verts), vi.co)
+
+        #OPTIONAL ADJUSTMENT: +  self.rot @ M.Vector((0, self.width * 0.2))
+        self.vertices = []
+        self.vertices = tab_verts
         self.text = ""
 
         self.center = (uvedge.va.co + uvedge.vb.co) / 2
@@ -1760,6 +1894,15 @@ class SVG:
                                     pos=self.format_vertex(marker.center, island.pos),
                                     mat=format_matrix(marker.rot),
                                     size=marker.width * 1000))
+                        elif isinstance(marker, PourHole):
+                            data_stickerfill.append("M {} Z".format(
+                                line_through_sticker(self.format_vertex(vertex.co, island.pos)  for vertex in marker.vertices)))
+                            if marker.text:
+                                data_markers.append(self.text_transformed_tag.format(
+                                    label=marker.text,
+                                    pos=self.format_vertex(marker.center, island.pos),
+                                    mat=format_matrix(marker.rot),
+                                    size=marker.width * 1000))
                         elif isinstance(marker, Arrow):
                             size = marker.size * 1000
                             position = marker.center + marker.size * marker.rot @ M.Vector((0, -0.9))
@@ -1786,6 +1929,9 @@ class SVG:
                             if uvedge.sticker:
                                 data_loop.extend(
                                     self.format_vertex(vertex.co, island.pos) for vertex in uvedge.sticker.vertices[1:])
+                            elif uvedge.pourhole:
+                                data_loop.extend(
+                                    self.format_vertex(vertex.co, island.pos) for vertex in uvedge.pourhole.vertices[1:])
                             else:
                                 vertex = uvedge.vb if uvedge.uvface.flipped else uvedge.va
                                 data_loop.append(self.format_vertex(vertex.co, island.pos))
@@ -1799,7 +1945,7 @@ class SVG:
                     visited_edges = set()
                     for loop, uvedge in island.edges.items():
                         edge = mesh.edges[loop.edge]
-                        if edge.is_cut(uvedge.uvface.face) and not uvedge.sticker:
+                        if edge.is_cut(uvedge.uvface.face) and not (uvedge.sticker or uvedge.pourhole):
                             continue
                         data_uvedge = "M {}".format(
                             line_through_simple(
@@ -2083,6 +2229,15 @@ class PDF:
                                 mat=marker.rot,
                                 align=-500 * self.text_width(marker.text, marker.width),
                                 size=1000 * marker.width))
+                    elif isinstance(marker, PourHole):
+                        data_stickerfill.append(line_through_sticker(marker.vertices))
+                        if marker.text:
+                            data_markers.append(self.command_sticker.format(
+                                label=marker.text,
+                                pos=1000 * marker.center,
+                                mat=marker.rot,
+                                align=-500 * self.text_width(marker.text, marker.width),
+                                size=1000 * marker.width))
                     elif isinstance(marker, Arrow):
                         size = 1000 * marker.size
                         position = 1000 * (marker.center + marker.size * marker.rot @ M.Vector((0, -0.9)))
@@ -2106,6 +2261,8 @@ class PDF:
                     while 1:
                         if uvedge.sticker:
                             data_loop.extend(uvedge.sticker.vertices[1:])
+                        elif uvedge.pourhole:
+                            data_loop.extend(uvedge.pourhole.vertices[1:])
                         else:
                             vertex = uvedge.vb if uvedge.uvface.flipped else uvedge.va
                             data_loop.append(vertex)
@@ -2118,7 +2275,7 @@ class PDF:
 
                 for loop, uvedge in island.edges.items():
                     edge = mesh.edges[loop.edge]
-                    if edge.is_cut(uvedge.uvface.face) and not uvedge.sticker:
+                    if edge.is_cut(uvedge.uvface.face) and not (uvedge.sticker or uvedge.pourhole):
                         continue
                     data_uvedge = line_through_simple((uvedge.va, uvedge.vb)) + "S"
                     if edge.freestyle:
