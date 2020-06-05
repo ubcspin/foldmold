@@ -1386,8 +1386,7 @@ class Tooth:
     def __init__(self):
 
         def load_geometry():
-            # return svg2uv(os_path.join(path_to_stickers, "tooth.svg"))
-            return svg2uv(os_path.join(path_to_stickers, "square.svg"))
+            return svg2uv(os_path.join(path_to_stickers, "tooth.svg"))
 
         def getWidth():
             # get bounding box of geometry
@@ -1511,7 +1510,6 @@ class Pin:
     def __init__(self):
 
         def load_geometry():
-            print("is this called??")
             return svg2uv(os_path.join(path_to_stickers,"pin.svg"))
 
         def getWidth():
