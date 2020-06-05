@@ -1261,8 +1261,6 @@ else:
 logger = logging.getLogger(__name__)
 ns = {"u": "http://www.w3.org/2000/svg"}
 
-vertices = []
-
 
 def load_svg(path):
     parser = etree.XMLParser(remove_comments=True, recover=True)
@@ -1275,13 +1273,15 @@ def load_svg(path):
         return svg_root
 
 def svg2uv(path):
-    vertices.clear()
+    vertices = []
     svg_root = load_svg(path)
     if svg_root is None:
         print("SVG import blowed up, no root!")
         return
 
     polylines = svg_root.findall("u:polyline", ns)
+    lines = svg_root.findall("u:line", ns)
+    rectangles = svg_root.findall("u:rect", ns)
     paths = svg_root.findall("u:path", ns)
 
     # Make Polyline Vectors
@@ -1293,7 +1293,15 @@ def svg2uv(path):
         polyline_vectors += vectorize_polylines(points)
         # polyline_vectors += vectorize_polylines("600,600") #delimiter
     for v in polyline_vectors:
-        makeUVVertices(v)
+        vertices.append(makeUVVertices(v))
+
+    # Make Lines
+    for l in lines:
+        vertices += vectorize_lines(l)
+
+    # Make Rectangles
+    for r in rectangles:
+        vertices += vectorize_rects(r)
 
     # Make Path vectors
     path_vectors = []
@@ -1303,23 +1311,12 @@ def svg2uv(path):
         path_vectors += vectorize_paths(path)
 
     for v in path_vectors:
-        pathToUVVertices(v)
+        vertices.append(pathToUVVertices(v))
 
-    return vertices.copy()
+    return vertices
 
 
 def vectorize_paths(path):
-    # "M0,0H250V395.28a104.71,104.71,0,0,0,11.06,46.83h0A104.71,104.71,0,0,0,354.72,500h40.56a104.71,104.71,0,0,0,93.66-57.89h0A104.71,104.71,0,0,0,500,395.28V0"
-    # r = re.compile('[MmHhAaVv][\d,\.-]*')  # split by commands
-    # p = re.sub(r'-', r',-', path)  # make sure to catch negatives
-    # commands = r.findall(p)
-    # for c in commands:
-    #     command = c[0]
-    #     parameters = [float(i) for i in c[1:].split(",")]
-    #     print(command, parameters)
-
-    # print(commands)
-    # return []
     paths = parse_path(path)
     print(paths)
     uv_vertices = []
@@ -1355,6 +1352,20 @@ def vectorize_polylines(points):
         lines.append(o)
     return lines
 
+def vectorize_lines(line):
+    return [UVVertex(M.Vector((float(line.attrib['x1']), float(line.attrib['y1']))) * 0.00001), \
+            UVVertex(M.Vector((float(line.attrib['x2']), float(line.attrib['y2']))) * 0.00001)]
+
+def vectorize_rects(rect):
+    x1, y1 = float(rect.attrib['x']), float(rect.attrib['y'])
+    width, height = float(rect.attrib['width']), float(rect.attrib['height'])
+
+    return [UVVertex(M.Vector((x1, y1)) * 0.00001), \
+            UVVertex(M.Vector((x1 + width, y1)) * 0.00001), \
+            UVVertex(M.Vector((x1 + width, y1 + height)) * 0.00001), \
+            UVVertex(M.Vector((x1, y1 + height)) * 0.00001), \
+            UVVertex(M.Vector((x1, y1)) * 0.00001)]
+
 
 def makeUVVertices(v):
     if not (v["x1"] == 0.5):
@@ -1362,13 +1373,12 @@ def makeUVVertices(v):
     else:
         v1 = UVVertex(M.Vector((v["x1"], v["y1"]))  )  # scaling down to avoid overflow
 
-    vertices.append(v1)
+    return v1
 
     # print("this line goes from point [%d, %d] to point [%d, %d]" % (v["x1"], v["y1"], v["x2"], v["y2"]))
 
 def pathToUVVertices(v):
-    v1 = UVVertex(M.Vector((v.real, v.imag)) * 0.00001)
-    vertices.append(v1)
+    return UVVertex(M.Vector((v.real, v.imag)) * 0.00001)
 
 # //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class Tooth:
@@ -1376,7 +1386,8 @@ class Tooth:
     def __init__(self):
 
         def load_geometry():
-            return svg2uv(os_path.join(path_to_stickers, "tooth.svg"))
+            # return svg2uv(os_path.join(path_to_stickers, "tooth.svg"))
+            return svg2uv(os_path.join(path_to_stickers, "square.svg"))
 
         def getWidth():
             # get bounding box of geometry
@@ -1501,9 +1512,7 @@ class Pin:
 
         def load_geometry():
             print("is this called??")
-            # for testing half circle. Change it back when done!!!
-            return svg2uv(os_path.join(path_to_stickers, "half-circle.svg"))
-            # return svg2uv(os_path.join(path_to_stickers,"pin.svg"))
+            return svg2uv(os_path.join(path_to_stickers,"pin.svg"))
 
         def getWidth():
             # get bounding box of geometry
