@@ -41,6 +41,7 @@ bl_info = {
 
 import svglib
 from svglib.svglib import svg2rlg
+from svgpathtools import parse_path, Line, Path, QuadraticBezier, CubicBezier, Arc
 
 import bpy
 import bl_operators
@@ -1260,8 +1261,6 @@ else:
 logger = logging.getLogger(__name__)
 ns = {"u": "http://www.w3.org/2000/svg"}
 
-vertices = []
-
 
 def load_svg(path):
     parser = etree.XMLParser(remove_comments=True, recover=True)
@@ -1274,13 +1273,15 @@ def load_svg(path):
         return svg_root
 
 def svg2uv(path):
-    vertices.clear()
+    vertices = []
     svg_root = load_svg(path)
     if svg_root is None:
         print("SVG import blowed up, no root!")
         return
 
     polylines = svg_root.findall("u:polyline", ns)
+    lines = svg_root.findall("u:line", ns)
+    rectangles = svg_root.findall("u:rect", ns)
     paths = svg_root.findall("u:path", ns)
 
     # Make Polyline Vectors
@@ -1292,28 +1293,47 @@ def svg2uv(path):
         polyline_vectors += vectorize_polylines(points)
         # polyline_vectors += vectorize_polylines("600,600") #delimiter
     for v in polyline_vectors:
-        makeUVVertices(v)
+        vertices.append(makeUVVertices(v))
+
+    # Make Lines
+    for l in lines:
+        vertices += vectorize_lines(l)
+
+    # Make Rectangles
+    for r in rectangles:
+        vertices += vectorize_rects(r)
 
     # Make Path vectors
     path_vectors = []
     for p in paths:
         path = p.attrib['d']
+        # path += "l0.5 0.5"
         path_vectors += vectorize_paths(path)
-    return vertices.copy()
+
+    for v in path_vectors:
+        vertices.append(pathToUVVertices(v))
+
+    return vertices
 
 
 def vectorize_paths(path):
-    # "M0,0H250V395.28a104.71,104.71,0,0,0,11.06,46.83h0A104.71,104.71,0,0,0,354.72,500h40.56a104.71,104.71,0,0,0,93.66-57.89h0A104.71,104.71,0,0,0,500,395.28V0"
-    r = re.compile('[MmHhAaVv][\d,\.-]*')  # split by commands
-    p = re.sub(r'-', r',-', path)  # make sure to catch negatives
-    commands = r.findall(p)
-    for c in commands:
-        command = c[0]
-        parameters = [float(i) for i in c[1:].split(",")]
-        print(command, parameters)
+    paths = parse_path(path)
+    print(paths)
+    uv_vertices = []
+    NUM_SAMPLES = 10
+    for subpath in paths:
+        uv_vertices.append(subpath.start)
+        if isinstance(subpath, Line):
+            pass
+        elif isinstance(subpath, CubicBezier) or isinstance(subpath, QuadraticBezier) or isinstance(subpath, Arc):
+            for i in range(NUM_SAMPLES):
+                uv_vertices.append(subpath.point(i/(NUM_SAMPLES-1)))
+        uv_vertices.append(subpath.end)
 
-    print(commands)
-    return []
+    print("UV_vertices:")
+    print(uv_vertices)
+    return uv_vertices
+
 
 
 def vectorize_polylines(points):
@@ -1332,6 +1352,20 @@ def vectorize_polylines(points):
         lines.append(o)
     return lines
 
+def vectorize_lines(line):
+    return [UVVertex(M.Vector((float(line.attrib['x1']), float(line.attrib['y1']))) * 0.00001), \
+            UVVertex(M.Vector((float(line.attrib['x2']), float(line.attrib['y2']))) * 0.00001)]
+
+def vectorize_rects(rect):
+    x1, y1 = float(rect.attrib['x']), float(rect.attrib['y'])
+    width, height = float(rect.attrib['width']), float(rect.attrib['height'])
+
+    return [UVVertex(M.Vector((x1, y1)) * 0.00001), \
+            UVVertex(M.Vector((x1 + width, y1)) * 0.00001), \
+            UVVertex(M.Vector((x1 + width, y1 + height)) * 0.00001), \
+            UVVertex(M.Vector((x1, y1 + height)) * 0.00001), \
+            UVVertex(M.Vector((x1, y1)) * 0.00001)]
+
 
 def makeUVVertices(v):
     if not (v["x1"] == 0.5):
@@ -1339,10 +1373,12 @@ def makeUVVertices(v):
     else:
         v1 = UVVertex(M.Vector((v["x1"], v["y1"]))  )  # scaling down to avoid overflow
 
-    vertices.append(v1)
+    return v1
 
     # print("this line goes from point [%d, %d] to point [%d, %d]" % (v["x1"], v["y1"], v["x2"], v["y2"]))
 
+def pathToUVVertices(v):
+    return UVVertex(M.Vector((v.real, v.imag)) * 0.00001)
 
 # //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class Tooth:
@@ -1409,7 +1445,7 @@ class SawtoothSticker:
         offset_left = (self.width - midsection_width) / 2
         offset_right = (self.width - midsection_width) / 2
         self.geometry, self.geometry_co = self.construct(offset_left, midsection_count, self.pattern)
-        print(self.width, self.pattern.width, midsection_count)
+        # print(self.width, self.pattern.width, midsection_count)
 
     def construct(self, offset_left, midsection_count, pattern):
         tab_verts = []
@@ -1424,7 +1460,7 @@ class SawtoothSticker:
                 tab_verts.insert(len(tab_verts), vi)
                 tab_verts_co.insert(len(tab_verts), vi.co)
 
-        print(offset_left)
+        # print(offset_left)
         return tab_verts, tab_verts_co
 
 
@@ -1433,7 +1469,7 @@ class Hole:
     def __init__(self):
 
         def load_geometry():
-            return svg2uv(os_path.join(path_to_stickers_win,"hole.svg"))
+            return svg2uv(os_path.join(path_to_stickers,"hole.svg"))
 
         def getWidth():
             # get bounding box of geometry
@@ -1446,7 +1482,21 @@ class Connector:
     def __init__(self):
 
         def load_geometry():
-            return svg2uv(os_path.join(path_to_stickers_win,"gap2.svg"))
+            return svg2uv(os_path.join(path_to_stickers,"gap2.svg"))
+
+        def getWidth():
+            # get bounding box of geometry
+            return  0.003
+
+        self.geometry = load_geometry()
+        self.width = getWidth()
+
+class HalfCircle:
+    __slots__ = ("geometry", "width")
+    def __init__(self):
+
+        def load_geometry():
+            return svg2uv(os_path.join(path_to_stickers,"half-circle.svg"))
 
         def getWidth():
             # get bounding box of geometry
@@ -1460,7 +1510,7 @@ class Pin:
     def __init__(self):
 
         def load_geometry():
-            return svg2uv(os_path.join(path_to_stickers_win,"pin.svg"))
+            return svg2uv(os_path.join(path_to_stickers,"pin.svg"))
 
         def getWidth():
             # get bounding box of geometry
@@ -1508,7 +1558,7 @@ class PinSticker:
         offset_left = (self.width - midsection_width) / 2
         offset_right = (self.width - midsection_width) / 2
         self.geometry, self.geometry_co = self.construct(offset_left, midsection_count, self.pattern)
-        print(self.width, self.pattern.width, midsection_count)
+        # print(self.width, self.pattern.width, midsection_count)
 
     def construct(self, offset_left, midsection_count, pattern):
         tab_verts = []
@@ -1524,7 +1574,7 @@ class PinSticker:
                 tab_verts.insert(len(tab_verts), vi)
                 tab_verts_co.insert(len(tab_verts), vi.co)
 
-        print(offset_left)
+        # print(offset_left)
         return tab_verts, tab_verts_co
 
 class Sticker:
@@ -1965,12 +2015,12 @@ class PDF:
             lists = list()
             curr = list()
             for point in seq:
-                print("POINT = ")
-                print(point.co)
+                # print("POINT = ")
+                # print(point.co)
                 if(point.co.x == 0.5):
                     lists.append(curr)
                     curr = list()
-                    print("DELIM")
+                    # print("DELIM")
                 else:
                     curr.append(point)
             lists.append(curr)
