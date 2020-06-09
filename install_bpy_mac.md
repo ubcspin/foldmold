@@ -23,7 +23,7 @@ cd blender
 make update
 ```
 ### Building python module
-Make a directory at `~/blender-git/build_bpy_darwin`
+Make a directory: `mkdir ~/blender-git/build_bpy_darwin`
 ```
 cd build_bpy_darwin
 cmake ../blender -DWITH_PLAYER=OFF -DWITH_PYTHON_INSTALL=OFF -DWITH_PYTHON_MODULE=ON -DWITH_OPENMP=OFF -DWITH_AUDASPACE=OFF
