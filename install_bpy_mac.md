@@ -2,6 +2,13 @@
 1. Xcode (>=8.5)
 2. Python 3.7 (In `/Library/Frameworks/Python.framework/Versions/3.7`)
 	I personally downloaded a new one on my machine globally [here](https://www.python.org/downloads/mac-osx/) 
+Note that you may need to install specific command line tools for xcode if SVN blows up. 
+
+```
+sudo rm -rf /Library/Developer/CommandLineTools xcode-select --install
+```
+Always be careful with `sudo` and `rm -rf`.
+
 
 ## Compilation
 (Reference [here](https://wiki.blender.org/wiki/Building_Blender/Mac) & [here](https://wiki.blender.org/wiki/Building_Blender/Other/BlenderAsPyModule))
