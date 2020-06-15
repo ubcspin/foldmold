@@ -1,3 +1,5 @@
+Note: you may need to change version numbers, i.e., 3.7 -> 3.8, or 2.81 -> 2.90.
+
 ## Pre-requisite
 1. Xcode (>=8.5)
 2. Python 3.7 (In `/Library/Frameworks/Python.framework/Versions/3.7`)
