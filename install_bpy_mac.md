@@ -25,7 +25,7 @@ make update
 ### Building python module
 Make a directory: `mkdir ~/blender-git/build_bpy_darwin`
 ```
-cd build_bpy_darwin
+cd ~/blender-git/build_bpy_darwin
 cmake ../blender -DWITH_PLAYER=OFF -DWITH_PYTHON_INSTALL=OFF -DWITH_PYTHON_MODULE=ON -DWITH_OPENMP=OFF -DWITH_AUDASPACE=OFF
 ```
 According to various [posts](https://devtalk.blender.org/t/macos-blender-as-a-python-module-build-errors/10165/9), we need to disable `WITH_OPENMP` and `WITH_AUDASPACE` in addition to the ones that blender documentation points out.
