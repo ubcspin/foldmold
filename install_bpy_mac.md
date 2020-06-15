@@ -65,3 +65,4 @@ fish: Job 2, 'python3  $argv' terminated by signal SIGSEGV (Address boundary err
 ```
 if I copy this into Anaconda virtual environment (the same issue from [this post](https://github.com/TylerGubala/blenderpy/issues/2#issuecomment-610899632)) Working from the system python resolves the issue.
 
+Segfault persists with Python 3.8.
