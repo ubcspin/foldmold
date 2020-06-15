@@ -9,6 +9,8 @@ sudo rm -rf /Library/Developer/CommandLineTools xcode-select --install
 ```
 Always be careful with `sudo` and `rm -rf`.
 
+If that fails with an SVN error again, try `brew install svn`.
+
 
 ## Compilation
 (Reference [here](https://wiki.blender.org/wiki/Building_Blender/Mac) & [here](https://wiki.blender.org/wiki/Building_Blender/Other/BlenderAsPyModule))
