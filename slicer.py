@@ -36,6 +36,13 @@ import re
 import os.path as os_path
 import logging
 
+global_materials = [
+    ('CARDBOARD', 'Cardboard', ''),
+    ('CHIPBOARD', 'Chipboard', '')
+]
+
+global_materials_thickness = {'CARDBOARD': 3, 'CHIPBOARD': 0.8}
+
 def newrow(layout, s1, root, s2):
     row = layout.row()
     row.label(text = s1)
@@ -661,6 +668,7 @@ class OBJECT_PT_Laser_Slicer_Panel(bpy.types.Panel):
         layout = self.layout
         row = layout.row()
         row.label(text = "Material dimensions:")
+        newrow(layout, "Material:", scene.slicer_settings, 'laser_slicer_material')
         newrow(layout, "Thickness (mm):", scene.slicer_settings, 'laser_slicer_material_thick')
         newrow(layout, "Width (mm):", scene.slicer_settings, 'laser_slicer_material_width')
         newrow(layout, "Height (mm):", scene.slicer_settings, 'laser_slicer_material_height')
@@ -690,12 +698,18 @@ class OBJECT_PT_Laser_Slicer_Panel(bpy.types.Panel):
                 col = split.column()
                 col.operator("object.laser_slicer", text="Slice the object")
 
+def on_update_material(self, context):
+    self.laser_slicer_material_thick = global_materials_thickness[self.laser_slicer_material]
+
 class Slicer_Settings(bpy.types.PropertyGroup):
     direction: StringProperty(name="", description="Axis along which to cut", default='rz')
     num_slices: IntProperty(name="", description="number of slices", min=1, max=500, default=10)
+    laser_slicer_material: EnumProperty(name="Material", description="Cutting material", default='CARDBOARD', 
+        update=on_update_material, 
+        items=global_materials)
     laser_slicer_material_thick: FloatProperty(
          name="", description="Thickness of the cutting material in mm",
-             min=0.1, max=50, default=2)
+             min=0.1, max=50, default=3)
     laser_slicer_material_width: FloatProperty(
          name="", description="Width of the cutting material in mm",
              min=1, max=5000, default=450)
@@ -714,7 +728,7 @@ class Slicer_Settings(bpy.types.PropertyGroup):
     laser_slicer_accuracy: BoolProperty(name = "", description = "Control the speed and accuracy of the slicing", default = False)
     laser_slicer_cut_colour: FloatVectorProperty(size = 3, name = "", attr = "Lini colour", default = [1.0, 0.0, 0.0], subtype ='COLOR', min = 0, max = 1)
     laser_slicer_cut_line: FloatProperty(name="", description="Thickness of the svg line (pixels)", min=0, max=5, default=1)
-
+    
 classes = (OBJECT_PT_Laser_Slicer_Panel, OBJECT_OT_Laser_Slicer, Slicer_Settings)
 
 def register():
