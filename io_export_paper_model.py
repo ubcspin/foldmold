@@ -1766,38 +1766,12 @@ class Sticker:
         first_vertex, second_vertex = (uvedge.va, uvedge.vb) if not uvedge.uvface.flipped else (uvedge.vb, uvedge.va)
         edge = first_vertex.co - second_vertex.co
         sticker_width = min(default_width, edge.length / 2)
-        # other_first, other_second = (other.va, other.vb) if not other.uvface.flipped else (other.vb, other.va)
-        # other_edge = other_second.co - other_first.co
 
-        # angle a is at vertex uvedge.va, b is at uvedge.vb
         cos_a = cos_b = 0.5
         sin_a = sin_b = 0.75 ** 0.5
         # len_a is length of the side adjacent to vertex a, len_b likewise
         len_a = len_b = sticker_width / sin_a
 
-        # fix overlaps with the most often neighbour - its sticking target
-        # if first_vertex == other_second:
-        #     cos_a = max(cos_a, edge.dot(other_edge) / (edge.length_squared))  # angles between pi/3 and 0
-        # elif second_vertex == other_first:
-        #     cos_b = max(cos_b, edge.dot(other_edge) / (edge.length_squared))  # angles between pi/3 and 0
-
-        # Fix tabs for sticking targets with small angles
-        # try:
-        #     other_face_neighbor_left = other.neighbor_left
-        #     other_face_neighbor_right = other.neighbor_right
-        #     other_edge_neighbor_a = other_face_neighbor_left.vb.co - other.vb.co
-        #     other_edge_neighbor_b = other_face_neighbor_right.va.co - other.va.co
-        #     # Adjacent angles in the face
-        #     cos_a = max(cos_a,
-        #                 -other_edge.dot(other_edge_neighbor_a) / (other_edge.length * other_edge_neighbor_a.length))
-        #     cos_b = max(cos_b,
-        #                 other_edge.dot(other_edge_neighbor_b) / (other_edge.length * other_edge_neighbor_b.length))
-        # except AttributeError:  # neighbor data may be missing for edges with 3+ faces
-        #     pass
-        # except ZeroDivisionError:
-        #     pass
-
-        # Calculate the lengths of the glue tab edges using the possibly smaller angles
         sin_a = abs(1 - cos_a ** 2) ** 0.5
         len_b = min(len_a, (edge.length * sin_a) / (sin_a * cos_b + sin_b * cos_a))
         len_a = 0 if sin_a == 0 else min(sticker_width / sin_a, (edge.length - len_b * cos_b) / cos_a)
@@ -1815,34 +1789,111 @@ class Sticker:
         self.width = sticker_width
 
         if(uvedge.type == 'pin'):
-            sawtooth = PinSticker(uvedge, default_width, index, other, isreversed)
-        else:
+            pin = PinSticker(uvedge, default_width, index, other, isreversed)
+            tab_verts = []
+            tab_verts_co = []
+            for i in range(len(pin.geometry)):
+                if not (pin.geometry_co[i][0] == 0.5):
+                    vi = UVVertex((second_vertex.co + self.rot @ pin.geometry_co[i]))
+                else:
+                    vi = UVVertex((pin.geometry_co[i]))
+                tab_verts.insert(len(tab_verts), vi)
+                tab_verts_co.insert(len(tab_verts), vi.co)
+
+            self.vertices = []
+            self.vertices = tab_verts
+            self.vertices.insert(len(tab_verts), first_vertex)
+            self.vertices.insert(0, second_vertex)
+
+            # if index and uvedge.uvface.island is not other.uvface.island:
+            #     self.text = "{}:{}".format(other.uvface.island.abbreviation, index)
+            # else:
+            self.text = ""
+
+            self.center = (uvedge.va.co + uvedge.vb.co) / 2
+            self.bounds = tab_verts_co
+            self.bounds.insert(len(tab_verts_co), self.center)
+        elif(uvedge.type == 'tooth'):
             sawtooth = SawtoothSticker(uvedge, default_width, index, other, isreversed)
-        tab_verts = []
-        tab_verts_co = []
-        for i in range(len(sawtooth.geometry)):
-            if not(sawtooth.geometry_co[i][0] == 0.5):
-                vi = UVVertex((second_vertex.co + self.rot @ sawtooth.geometry_co[i]))
+            tab_verts = []
+            tab_verts_co = []
+            for i in range(len(sawtooth.geometry)):
+                if not(sawtooth.geometry_co[i][0] == 0.5):
+                    vi = UVVertex((second_vertex.co + self.rot @ sawtooth.geometry_co[i]))
+                else:
+                    vi = UVVertex(( sawtooth.geometry_co[i]))
+                tab_verts.insert(len(tab_verts), vi)
+                tab_verts_co.insert(len(tab_verts), vi.co)
+
+            #OPTIONAL ADJUSTMENT: +  self.rot @ M.Vector((0, self.width * 0.2))
+            self.vertices = []
+            self.vertices = tab_verts
+            self.vertices.insert(len(tab_verts), first_vertex)
+            self.vertices.insert(0, second_vertex)
+
+
+            # if index and uvedge.uvface.island is not other.uvface.island:
+            #     self.text = "{}:{}".format(other.uvface.island.abbreviation, index)
+            # else:
+            self.text = ""
+
+            self.center = (uvedge.va.co + uvedge.vb.co) / 2
+            self.bounds = tab_verts_co
+            self.bounds.insert(len(tab_verts_co), self.center)
+        else:
+
+            other_first, other_second = (other.va, other.vb) if not other.uvface.flipped else (other.vb, other.va)
+            other_edge = other_second.co - other_first.co
+
+            # fix overlaps with the most often neighbour - its sticking target
+            if first_vertex == other_second:
+                cos_a = max(cos_a, edge.dot(other_edge) / (edge.length_squared))  # angles between pi/3 and 0
+            elif second_vertex == other_first:
+                cos_b = max(cos_b, edge.dot(other_edge) / (edge.length_squared))  # angles between pi/3 and 0
+
+            # Fix tabs for sticking targets with small angles
+            try:
+                other_face_neighbor_left = other.neighbor_left
+                other_face_neighbor_right = other.neighbor_right
+                other_edge_neighbor_a = other_face_neighbor_left.vb.co - other.vb.co
+                other_edge_neighbor_b = other_face_neighbor_right.va.co - other.va.co
+                # Adjacent angles in the face
+                cos_a = max(cos_a,
+                            -other_edge.dot(other_edge_neighbor_a) / (other_edge.length * other_edge_neighbor_a.length))
+                cos_b = max(cos_b,
+                            other_edge.dot(other_edge_neighbor_b) / (other_edge.length * other_edge_neighbor_b.length))
+            except AttributeError:  # neighbor data may be missing for edges with 3+ faces
+                pass
+            except ZeroDivisionError:
+                pass
+
+            # Calculate the lengths of the glue tab edges using the possibly smaller angles
+            sin_a = abs(1 - cos_a ** 2) ** 0.5
+            len_b = min(len_a, (edge.length * sin_a) / (sin_a * cos_b + sin_b * cos_a))
+            len_a = 0 if sin_a == 0 else min(sticker_width / sin_a, (edge.length - len_b * cos_b) / cos_a)
+
+            sin_b = abs(1 - cos_b ** 2) ** 0.5
+            len_a = min(len_a, (edge.length * sin_b) / (sin_a * cos_b + sin_b * cos_a))
+            len_b = 0 if sin_b == 0 else min(sticker_width / sin_b, (edge.length - len_a * cos_a) / cos_b)
+
+            v3 = UVVertex(second_vertex.co + M.Matrix(((cos_b, -sin_b), (sin_b, cos_b))) @ edge * len_b / edge.length)
+            v4 = UVVertex(first_vertex.co + M.Matrix(((-cos_a, -sin_a), (sin_a, -cos_a))) @ edge * len_a / edge.length)
+            if v3.co != v4.co:
+                self.vertices = [second_vertex, v3, v4, first_vertex]
             else:
-                vi = UVVertex(( sawtooth.geometry_co[i]))
-            tab_verts.insert(len(tab_verts), vi)
-            tab_verts_co.insert(len(tab_verts), vi.co)
+                self.vertices = [second_vertex, v3, first_vertex]
 
-        #OPTIONAL ADJUSTMENT: +  self.rot @ M.Vector((0, self.width * 0.2))
-        self.vertices = []
-        self.vertices = tab_verts
-        self.vertices.insert(len(tab_verts), first_vertex)
-        self.vertices.insert(0, second_vertex)
+            sin, cos = edge.y / edge.length, edge.x / edge.length
+            self.rot = M.Matrix(((cos, -sin), (sin, cos)))
+            self.width = sticker_width * 0.9
+            # if index and uvedge.uvface.island is not other.uvface.island:
+            #     self.text = "{}:{}".format(other.uvface.island.abbreviation, index)
+            # else:
+            #     self.text = index
+            self.text = ""
+            self.center = (uvedge.va.co + uvedge.vb.co) / 2 + self.rot @ M.Vector((0, self.width * 0.2))
+            self.bounds = [v3.co, v4.co, self.center] if v3.co != v4.co else [v3.co, self.center]
 
-
-        # if index and uvedge.uvface.island is not other.uvface.island:
-        #     self.text = "{}:{}".format(other.uvface.island.abbreviation, index)
-        # else:
-        self.text = ""
-
-        self.center = (uvedge.va.co + uvedge.vb.co) / 2
-        self.bounds = tab_verts_co
-        self.bounds.insert(len(tab_verts_co), self.center)
 
 class PourHoleSticker:
     __slots__ = ('bounds', 'center', 'rot', 'text', 'width', 'vertices', "pattern", "geometry", "geometry_co")
