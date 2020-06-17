@@ -9,18 +9,18 @@
 # * User interface
 # During the unfold process, the mesh is mirrored into a 2D structure: UVFace, UVEdge, UVVertex.
 
-bl_info = {
-    "name": "Export Paper Model",
-    "author": "Addam Dominec",
-    "version": (1, 1),
-    "blender": (2, 80, 0),
-    "location": "File > Export > Paper Model",
-    "warning": "",
-    "description": "Export printable net of the active mesh",
-    "category": "Import-Export",
-    "wiki_url": "http://wiki.blender.org/index.php/Extensions:2.6/Py/"
-                "Scripts/Import-Export/Paper_Model"
-}
+# bl_info = {
+#     "name": "Export Paper Model",
+#     "author": "Addam Dominec",
+#     "version": (1, 1),
+#     "blender": (2, 80, 0),
+#     "location": "File > Export > Paper Model",
+#     "warning": "",
+#     "description": "Export printable net of the active mesh",
+#     "category": "Import-Export",
+#     "wiki_url": "http://wiki.blender.org/index.php/Extensions:2.6/Py/"
+#                 "Scripts/Import-Export/Paper_Model"
+# }
 
 # Task: split into four files (SVG and PDF separately)
 # does any portion of baking belong into the export module?
@@ -55,6 +55,9 @@ import logging
 from lxml import etree
 import re
 
+from . import utilities
+u = utilities.Utilities()
+
 default_priority_effect = {
     'CONVEX': 0.5,
     'CONCAVE': 1,
@@ -74,21 +77,6 @@ sawtooth_edges = []
 glue_edges = []
 current_edge = "auto"
 
-def first_letters(text):
-    """Iterator over the first letter of each word"""
-    for match in first_letters.pattern.finditer(text):
-        yield text[match.start()]
-
-
-first_letters.pattern = re_compile("((?<!\w)\w)|\d")
-
-
-def is_upsidedown_wrong(name):
-    """Tell if the string would get a different meaning if written upside down"""
-    chars = set(name)
-    mistakable = set("69NZMWpbqd")
-    rotatable = set("80oOxXIl").union(mistakable)
-    return chars.issubset(rotatable) and not chars.isdisjoint(mistakable)
 
 
 def pairs(sequence):
@@ -168,7 +156,6 @@ def cage_fit(points, aspect):
     polygon = [points[i] for i in M.geometry.convex_hull_2d(points)]
     height, sinx, cosx = min(guesses(polygon))
     return atan2(sinx, cosx), height
-
 
 def create_blank_image(image_name, dimensions, alpha=1):
     """Create a new image and assign white color to all its pixels"""
@@ -650,7 +637,7 @@ class Mesh:
                     for uvedge in [source] + edge.uvedges[2:]:
                         target_island.sticker_numbering += 1
                         index = str(target_island.sticker_numbering)
-                        if is_upsidedown_wrong(index):
+                        if u.is_upsidedown_wrong(index):
                             index += "."
                         # target_island.add_marker(Arrow(target, default_width, index))
                         break
@@ -682,7 +669,7 @@ class Mesh:
             if edge.is_main_cut and len(edge.uvedges) >= 2:
                 global_numbering += 1
                 index = str(global_numbering)
-                if is_upsidedown_wrong(index):
+                if u.is_upsidedown_wrong(index):
                     index += "."
                 for uvedge in edge.uvedges:
                     uvedge.uvface.island.add_marker(NumberAlone(uvedge, index, size))
@@ -1014,7 +1001,7 @@ class Island:
         """Assign a name to this island automatically"""
         abbr = abbreviation or self.abbreviation or str(self.number)
         # TODO: dots should be added in the last instant when outputting any text
-        if is_upsidedown_wrong(abbr):
+        if u.is_upsidedown_wrong(abbr):
             abbr += "."
         self.label = label or self.label or "Island {}".format(self.number)
         self.abbreviation = abbr
@@ -1437,7 +1424,7 @@ class Arrow:
 
 
 # /////////////////////////////////////////////////////////////////////////////////////////////////////////////
-path_to_stickers_mac = "/Applications/Blender.app/Contents/Resources/2.82/scripts/addons/Stickers/"
+path_to_stickers_mac = "/Applications/Blender.app/Contents/Resources/2.82/scripts/addons/foldmold/Stickers/"
 path_to_stickers_win = "C:\Program Files\\Blender Foundation\\Blender 2.81\\2.81\\scripts\\addons\\Stickers\\"
 
 if sys.platform.startswith('win32'):
@@ -3285,7 +3272,7 @@ def island_item_changed(self, context):
         self["label"] = "Island {}".format(number)
     if self.auto_abbrev:
         self["abbreviation"] = ""  # avoid self-conflict
-        abbrev = "".join(first_letters(self.label))[:3].upper()
+        abbrev = "".join(u.first_letters(self.label))[:3].upper()
         self["abbreviation"] = increment(abbrev, {item.abbreviation for item in island_list})
     elif len(self.abbreviation) > 3:
         self["abbreviation"] = self.abbreviation[:3]
@@ -3369,8 +3356,6 @@ def myindex(self, context):
         current_edge = "glue"
 
 def register():
-    for cls in module_classes:
-        bpy.utils.register_class(cls)
     bpy.types.Scene.paper_model = bpy.props.PointerProperty(
         name="Paper Model", description="Settings of the Export Paper Model script",
         type=PaperModelSettings, options={'SKIP_SAVE'})
@@ -3393,13 +3378,17 @@ def register():
     bpy.types.TOPBAR_MT_file_export.append(menu_func_export)
     bpy.types.VIEW3D_MT_edit_mesh.prepend(menu_func_unfold)
 
+    u.hello("World2")
+    u.is_upsidedown_wrong("wow")
+    # u.first_letters("tttt") // not sure if we can test this??
+
+
 
 def unregister():
     bpy.types.TOPBAR_MT_file_export.remove(menu_func_export)
     bpy.types.VIEW3D_MT_edit_mesh.remove(menu_func_unfold)
-    for cls in reversed(module_classes):
-        bpy.utils.unregister_class(cls)
 
 
-if __name__ == "__main__":
-    register()
+
+# if __name__ == "__main__":
+#     register()
