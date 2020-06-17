@@ -41,8 +41,7 @@ bl_info = {
 
 import svglib
 from svglib.svglib import svg2rlg
-from svgpathtools import parse_path, Line, Path, QuadraticBezier, CubicBezier, Arc
-
+import copy
 import bpy
 import bl_operators
 import bmesh
@@ -70,6 +69,10 @@ global_paper_sizes = [
     ('US_LEGAL', "Legal", "North American paper size")
 ]
 
+pin_edges = []
+sawtooth_edges = []
+glue_edges = []
+current_edge = "auto"
 
 def first_letters(text):
     """Iterator over the first letter of each word"""
@@ -305,6 +308,138 @@ class Unfolder:
         exporter.write(self.mesh, filepath)
 
 
+        # bpy.ops.object.mode_set(mode='OBJECT')
+        # obj = bpy.context.active_object
+        #
+        # x, y, z = obj.dimensions
+        # me = obj.data
+        # bm = bmesh.new()
+        # bm.from_mesh(me)
+        #
+        # loc = obj.location
+        # print(loc)
+
+        # ###########################Create left side x, scale it, subdivide it, get diff from positive
+        # bpy.ops.mesh.primitive_cube_add(location=(loc.x - x * 0.5, loc.y, loc.z))
+        # cube = bpy.context.selected_objects[0]
+        # cube.name = "left-y"
+        # arm = bpy.data.objects['left-y']
+        #
+        # arm.scale = (x * 0.5, y * 1.5, z * 1.5)
+        #
+        # bpy.data.objects['left-y'].select_set(True)
+        # armme = bpy.context.active_object.data
+        # armbm = bmesh.new()
+        # armbm.from_mesh(armme)
+        # print(armbm)
+        # bmesh.ops.subdivide_edges(armbm,
+        #                           edges=armbm.edges,
+        #                           use_grid_fill=True,
+        #                           cuts=1)
+        # armbm.to_mesh(armme)
+        #
+        # diff = arm.modifiers.new(name="Boolean", type="BOOLEAN")
+        # diff.object = obj
+        # diff.operation = "DIFFERENCE"
+        # diff.double_threshold = 0
+        # bpy.ops.object.modifier_apply(apply_as='DATA', modifier="Boolean")
+        #
+        # ##########################Now the same for right side x
+        #
+        # bpy.ops.mesh.primitive_cube_add(location=(loc.x + x * 0.5, loc.y, loc.z))
+        # cube = bpy.context.selected_objects[0]
+        # cube.name = "right-y"
+        # arm2 = bpy.data.objects['right-y']
+        #
+        # arm2.scale = (x * 0.5, y * 1.5, z * 1.5)
+        #
+        # bpy.ops.object.select_all(action='DESELECT')
+        # bpy.data.objects['right-y'].select_set(True)
+        #
+        # armme2 = bpy.context.active_object.data
+        # armbm2 = bmesh.new()
+        # armbm2.from_mesh(armme2)
+        # print(armbm2)
+        # bmesh.ops.subdivide_edges(armbm2,
+        #                           edges=armbm2.edges,
+        #                           use_grid_fill=True,
+        #                           cuts=1)
+        # armbm2.to_mesh(armme2)
+        #
+        # bpy.ops.object.editmode_toggle()
+        # bpy.ops.mesh.select_all(action='SELECT')
+        #
+        # bpy.ops.mesh.flip_normals()
+        # bpy.ops.object.editmode_toggle()
+        #
+        # diff = arm2.modifiers.new(name="Boolean2", type="BOOLEAN")
+        # diff.object = obj
+        # diff.operation = "DIFFERENCE"
+        # diff.double_threshold = 0
+        # bpy.ops.object.modifier_apply(apply_as='DATA', modifier="Boolean2")
+
+        ###########################Create left side z, scale it, subdivide it, get diff from positive
+        # bpy.ops.mesh.primitive_cube_add(location=(loc.x - x * 0.45, loc.y, loc.z))
+        # cube = bpy.context.selected_objects[0]
+        # cube.name = "left-z"
+        # arm3 = bpy.data.objects['left-z']
+        #
+        # arm3.scale = (x * 0.4, y * 1.2, z * 1.1)
+        #
+        # bpy.data.objects['left-z'].select_set(True)
+        # armme3 = bpy.context.active_object.data
+        # armbm3 = bmesh.new()
+        # armbm3.from_mesh(armme3)
+        # print(armbm3)
+        # bmesh.ops.subdivide_edges(armbm3,
+        #                           edges=armbm3.edges,
+        #                           use_grid_fill=True,
+        #                           cuts=1)
+        # armbm3.to_mesh(armme3)
+        #
+        # diff = arm3.modifiers.new(name="Boolean3", type="BOOLEAN")
+        # diff.object = obj
+        # diff.operation = "DIFFERENCE"
+        # diff.double_threshold = 0
+        # bpy.ops.object.modifier_apply(apply_as='DATA', modifier="Boolean3")
+
+        ##########################Now the same for right side z
+
+        # bpy.ops.mesh.primitive_cube_add(location=(loc.x + x * 0.45, loc.y, loc.z))
+        # cube = bpy.context.selected_objects[0]
+        # cube.name = "right-z"
+        # arm4 = bpy.data.objects['right-z']
+        #
+        # arm4.scale = (x * 0.4, y * 1.2, z * 1.1)
+        #
+        # bpy.ops.object.select_all(action='DESELECT')
+        # bpy.data.objects['right-z'].select_set(True)
+        #
+        # armme4 = bpy.context.active_object.data
+        # armbm4 = bmesh.new()
+        # armbm4.from_mesh(armme4)
+        # print(armbm4)
+        # bmesh.ops.subdivide_edges(armbm4,
+        #                           edges=armbm4.edges,
+        #                           use_grid_fill=True,
+        #                           cuts=1)
+        # armbm4.to_mesh(armme4)
+        #
+        # bpy.ops.object.editmode_toggle()
+        # bpy.ops.mesh.select_all(action='SELECT')
+        #
+        # bpy.ops.mesh.flip_normals()
+        # bpy.ops.object.editmode_toggle()
+        #
+        # diff = arm4.modifiers.new(name="Boolean4", type="BOOLEAN")
+        # diff.object = obj
+        # diff.operation = "DIFFERENCE"
+        # diff.double_threshold = 0
+        # bpy.ops.object.modifier_apply(apply_as='DATA', modifier="Boolean4")
+        #
+        # bm.to_mesh(me)
+
+
 class Mesh:
     """Wrapper for Bpy Mesh"""
 
@@ -368,6 +503,14 @@ class Mesh:
             "The offenders are selected and you can use {} to fix them. Export failed.".format(cure),
             {"verts": set(), "edges": null_edges, "faces": null_faces | twisted_faces}, self.data)
 
+
+    def add_hole(self, uvface):
+
+        uvedge = uvface.uvedges[1]
+
+        uvedge.pourhole = PourHole(uvedge)
+        uvedge.uvface.island.add_marker(uvedge.pourhole)
+
     def generate_cuts(self, page_size, priority_effect):
         """Cut the mesh so that it can be unfolded to a flat net."""
         normal_matrix = self.matrix.inverted().transposed()
@@ -384,7 +527,7 @@ class Mesh:
             for edge in edges:
                 edge.generate_priority(priority_effect, average_length)
             edges.sort(reverse=False, key=lambda edge: edge.priority)
-            print([edge.is_kerf for edge in edges])
+            # print([edge.is_kerf for edge in edges])
             for edge in edges:
                 if not edge.vector:
                     continue
@@ -394,6 +537,8 @@ class Mesh:
                     islands.remove(old_island)
 
         self.islands = sorted(islands, reverse=True, key=lambda island: len(island.faces))
+
+
 
         for edge in self.edges.values():
             # some edges did not know until now whether their angle is convex or concave
@@ -462,6 +607,7 @@ class Mesh:
                         else zip([uvedges[-1]] + uvedges[1::2], uvedges[:-1:2])):
                     left.neighbor_right = right
                     right.neighbor_left = left
+
         return True
 
     def generate_stickers(self, default_width, do_create_numbers=True):
@@ -509,11 +655,25 @@ class Mesh:
                         # target_island.add_marker(Arrow(target, default_width, index))
                         break
                 add_sticker(source, index, target, False)
-            # elif len(edge.uvedges) > 2:
-            #     target = edge.uvedges[0]
-            # if len(edge.uvedges) > 2:
-            #     for source in edge.uvedges[2:]:
-            #         add_sticker(source, index, target, False)
+
+
+        islands = self.islands
+        uvfaces = {face: uvface for island in islands for face, uvface in island.faces.items()}
+
+        up_vector = M.Vector((0, 0, 1))
+        toppestface = None
+        toppestuvface = None
+        for face, uvface in uvfaces.items():
+            if( not toppestface):
+                toppestface = face
+                toppestuvface = uvface
+
+            if((face.normal-up_vector).length < (toppestface.normal-up_vector).length):
+                toppestface = face
+                toppestuvface = uvface
+        self.add_hole(toppestuvface)
+
+
 
 
     def generate_numbers_alone(self, size):
@@ -565,7 +725,7 @@ class Mesh:
                 point -= bottom_left
 
             island.bounding_box = M.Vector((max(v.x for v in points_c), max(v.y for v in points_c)))
-            print(island.bounding_box)
+            # print(island.bounding_box)
 
     def largest_island_ratio(self, cage_size):
         return max(i / p for island in self.islands for (i, p) in zip(island.bounding_box, cage_size))
@@ -614,7 +774,7 @@ class Mesh:
             return [stop for stop, distance in zip(stops, chain([quantile], distances)) if distance >= quantile]
 
         if any(island.bounding_box.x > cage_size.x or island.bounding_box.y > cage_size.y for island in self.islands):
-            print(cage_size)
+            # print(cage_size)
             raise UnfoldError(
                 "An island is too big to fit onto page of the given size. "
                 "Either downscale the model or find and split that island manually.\n"
@@ -712,7 +872,7 @@ class Edge:
     """Wrapper for BPy Edge"""
     __slots__ = ('data', 'va', 'vb', 'main_faces', 'uvedges',
                  'vector', 'angle',
-                 'is_main_cut', 'force_cut', 'priority', 'freestyle', 'is_kerf')
+                 'is_main_cut', 'force_cut', 'priority', 'freestyle', 'is_kerf', 'type')
 
     def __init__(self, edge):
         self.data = edge
@@ -732,12 +892,26 @@ class Edge:
         self.freestyle = False
 
         faces = edge.link_faces
+
+        # print(self.data.index)
+        # print(pin_edges)
+        # if(self.data.index in pin_edges):
+        #     self.type = 'pin'
+        # elif(self.data.index in sawtooth_edges):
+        #     self.type = 'tooth'
+        # elif(self.data.index in glue_edges):
+        #     self.type = 'glue'
+        # else:
+        #     self.type = 'auto'
+        #
+        # for uv in self.uvedges:
+        #     uv.type = self.type
+
         if(faces[0].smooth and faces[1].smooth):
             self.is_kerf = True
 
             for uv in self.uvedges:
                 uv.is_kerf = True
-            print("TRUEEEE")
         else:
             self.is_kerf = False
 
@@ -779,7 +953,7 @@ class Edge:
         else:
             self.priority = priority_effect['CONCAVE'] * angle / pi
         self.priority += (self.vector.length / average_length) * priority_effect['LENGTH']
-        print(self.priority)
+        # print(self.priority)
 
     def is_cut(self, face):
         """Return False if this edge will the given face to another one in the resulting net
@@ -1173,7 +1347,7 @@ class UVEdge:
     # UVEdges are doubled as needed because they both have to point clockwise around their faces
     __slots__ = ('va', 'vb', 'uvface', 'loop',
                  'min', 'max', 'bottom', 'top',
-                 'neighbor_left', 'neighbor_right', 'sticker', 'is_kerf')
+                 'neighbor_left', 'neighbor_right', 'sticker', 'is_kerf', 'type', 'pourhole')
 
     def __init__(self, vertex1: UVVertex, vertex2: UVVertex, uvface, loop, is_kerf):
         self.va = vertex1
@@ -1183,6 +1357,20 @@ class UVEdge:
         self.sticker = None
         self.loop = loop
         self.is_kerf = is_kerf
+        self.type = 'auto'
+        self.pourhole = None
+
+        print(self.loop.edge.index)
+        print(pin_edges)
+        if(self.loop.edge.index in pin_edges):
+            self.type = 'pin'
+        elif(self.loop.edge.index in sawtooth_edges):
+            self.type = 'tooth'
+        elif(self.loop.edge.index in glue_edges):
+            self.type = 'glue'
+        else:
+            self.type = 'auto'
+
 
     def update(self):
         """Update data if UVVertices have moved"""
@@ -1216,7 +1404,7 @@ class PhantomUVEdge:
 
 class UVFace:
     """Face in 2D"""
-    __slots__ = ('vertices', 'edges', 'face', 'island', 'flipped')
+    __slots__ = ('vertices', 'edges', 'face', 'island', 'flipped', 'uvedges')
 
     def __init__(self, face: bmesh.types.BMFace, island: Island, matrix=1, normal_matrix=1):
         self.face = face
@@ -1227,6 +1415,8 @@ class UVFace:
         self.vertices = {loop: UVVertex(flatten @ loop.vert.co) for loop in face.loops}
         self.edges = {loop: UVEdge(self.vertices[loop], self.vertices[loop.link_loop_next], self, loop, self.face.smooth) for loop in
                       face.loops}
+        self.uvedges = [UVEdge(self.vertices[loop], self.vertices[loop.link_loop_next], self, loop, self.face.smooth) for loop in
+                      face.loops]
 
 
 class Arrow:
@@ -1261,6 +1451,8 @@ else:
 logger = logging.getLogger(__name__)
 ns = {"u": "http://www.w3.org/2000/svg"}
 
+vertices = []
+
 
 def load_svg(path):
     parser = etree.XMLParser(remove_comments=True, recover=True)
@@ -1273,15 +1465,13 @@ def load_svg(path):
         return svg_root
 
 def svg2uv(path):
-    vertices = []
+    vertices.clear()
     svg_root = load_svg(path)
     if svg_root is None:
         print("SVG import blowed up, no root!")
         return
 
     polylines = svg_root.findall("u:polyline", ns)
-    lines = svg_root.findall("u:line", ns)
-    rectangles = svg_root.findall("u:rect", ns)
     paths = svg_root.findall("u:path", ns)
 
     # Make Polyline Vectors
@@ -1293,47 +1483,28 @@ def svg2uv(path):
         polyline_vectors += vectorize_polylines(points)
         # polyline_vectors += vectorize_polylines("600,600") #delimiter
     for v in polyline_vectors:
-        vertices.append(makeUVVertices(v))
-
-    # Make Lines
-    for l in lines:
-        vertices += vectorize_lines(l)
-
-    # Make Rectangles
-    for r in rectangles:
-        vertices += vectorize_rects(r)
+        makeUVVertices(v)
 
     # Make Path vectors
     path_vectors = []
     for p in paths:
         path = p.attrib['d']
-        # path += "l0.5 0.5"
         path_vectors += vectorize_paths(path)
-
-    for v in path_vectors:
-        vertices.append(pathToUVVertices(v))
-
-    return vertices
+    return vertices.copy()
 
 
 def vectorize_paths(path):
-    paths = parse_path(path)
-    print(paths)
-    uv_vertices = []
-    NUM_SAMPLES = 10
-    for subpath in paths:
-        uv_vertices.append(subpath.start)
-        if isinstance(subpath, Line):
-            pass
-        elif isinstance(subpath, CubicBezier) or isinstance(subpath, QuadraticBezier) or isinstance(subpath, Arc):
-            for i in range(NUM_SAMPLES):
-                uv_vertices.append(subpath.point(i/(NUM_SAMPLES-1)))
-        uv_vertices.append(subpath.end)
+    # "M0,0H250V395.28a104.71,104.71,0,0,0,11.06,46.83h0A104.71,104.71,0,0,0,354.72,500h40.56a104.71,104.71,0,0,0,93.66-57.89h0A104.71,104.71,0,0,0,500,395.28V0"
+    r = re.compile('[MmHhAaVv][\d,\.-]*')  # split by commands
+    p = re.sub(r'-', r',-', path)  # make sure to catch negatives
+    commands = r.findall(p)
+    for c in commands:
+        command = c[0]
+        parameters = [float(i) for i in c[1:].split(",")]
+        print(command, parameters)
 
-    print("UV_vertices:")
-    print(uv_vertices)
-    return uv_vertices
-
+    print(commands)
+    return []
 
 
 def vectorize_polylines(points):
@@ -1352,20 +1523,6 @@ def vectorize_polylines(points):
         lines.append(o)
     return lines
 
-def vectorize_lines(line):
-    return [UVVertex(M.Vector((float(line.attrib['x1']), float(line.attrib['y1']))) * 0.00001), \
-            UVVertex(M.Vector((float(line.attrib['x2']), float(line.attrib['y2']))) * 0.00001)]
-
-def vectorize_rects(rect):
-    x1, y1 = float(rect.attrib['x']), float(rect.attrib['y'])
-    width, height = float(rect.attrib['width']), float(rect.attrib['height'])
-
-    return [UVVertex(M.Vector((x1, y1)) * 0.00001), \
-            UVVertex(M.Vector((x1 + width, y1)) * 0.00001), \
-            UVVertex(M.Vector((x1 + width, y1 + height)) * 0.00001), \
-            UVVertex(M.Vector((x1, y1 + height)) * 0.00001), \
-            UVVertex(M.Vector((x1, y1)) * 0.00001)]
-
 
 def makeUVVertices(v):
     if not (v["x1"] == 0.5):
@@ -1373,12 +1530,10 @@ def makeUVVertices(v):
     else:
         v1 = UVVertex(M.Vector((v["x1"], v["y1"]))  )  # scaling down to avoid overflow
 
-    return v1
+    vertices.append(v1)
 
     # print("this line goes from point [%d, %d] to point [%d, %d]" % (v["x1"], v["y1"], v["x2"], v["y2"]))
 
-def pathToUVVertices(v):
-    return UVVertex(M.Vector((v.real, v.imag)) * 0.00001)
 
 # //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class Tooth:
@@ -1491,20 +1646,6 @@ class Connector:
         self.geometry = load_geometry()
         self.width = getWidth()
 
-class HalfCircle:
-    __slots__ = ("geometry", "width")
-    def __init__(self):
-
-        def load_geometry():
-            return svg2uv(os_path.join(path_to_stickers,"half-circle.svg"))
-
-        def getWidth():
-            # get bounding box of geometry
-            return  0.003
-
-        self.geometry = load_geometry()
-        self.width = getWidth()
-
 class Pin:
     __slots__ = ("geometry", "width")
     def __init__(self):
@@ -1534,6 +1675,43 @@ class PinPattern:
             self.tileset = [Hole(), Connector()]
         else:
             self.tileset = [Pin(), Gap()]
+        self.width = getWidth(self.tileset)
+
+
+    def getGeometry(self):
+        vertices = []
+        for tile in self.tileset:
+            for vi in tile.geometry:
+                vertices.insert(len(vertices), vi)
+
+        return vertices
+
+class PourHoleTile:
+    __slots__ = ("geometry", "width")
+    def __init__(self):
+
+        def load_geometry():
+            return svg2uv(os_path.join(path_to_stickers,"pourhole.svg"))
+
+        def getWidth():
+            # get bounding box of geometry
+            return 0.003 # stub
+
+        self.geometry = load_geometry()
+        self.width = getWidth()
+
+
+class PourHolePattern:
+    __slots__ = ("tileset", "width")
+    def __init__(self):
+        def getWidth(tileset):
+            width = 0
+            for tile in tileset:
+                width += tile.width
+            return width
+
+
+        self.tileset = [PourHoleTile()]
         self.width = getWidth(self.tileset)
 
 
@@ -1577,6 +1755,8 @@ class PinSticker:
         # print(offset_left)
         return tab_verts, tab_verts_co
 
+
+
 class Sticker:
     """Mark in the document: sticker tab"""
     __slots__ = ('bounds', 'center', 'rot', 'text', 'width', 'vertices')
@@ -1586,36 +1766,178 @@ class Sticker:
         first_vertex, second_vertex = (uvedge.va, uvedge.vb) if not uvedge.uvface.flipped else (uvedge.vb, uvedge.va)
         edge = first_vertex.co - second_vertex.co
         sticker_width = min(default_width, edge.length / 2)
-        # other_first, other_second = (other.va, other.vb) if not other.uvface.flipped else (other.vb, other.va)
-        # other_edge = other_second.co - other_first.co
 
-        # angle a is at vertex uvedge.va, b is at uvedge.vb
         cos_a = cos_b = 0.5
         sin_a = sin_b = 0.75 ** 0.5
         # len_a is length of the side adjacent to vertex a, len_b likewise
         len_a = len_b = sticker_width / sin_a
 
-        # fix overlaps with the most often neighbour - its sticking target
-        # if first_vertex == other_second:
-        #     cos_a = max(cos_a, edge.dot(other_edge) / (edge.length_squared))  # angles between pi/3 and 0
-        # elif second_vertex == other_first:
-        #     cos_b = max(cos_b, edge.dot(other_edge) / (edge.length_squared))  # angles between pi/3 and 0
+        sin_a = abs(1 - cos_a ** 2) ** 0.5
+        len_b = min(len_a, (edge.length * sin_a) / (sin_a * cos_b + sin_b * cos_a))
+        len_a = 0 if sin_a == 0 else min(sticker_width / sin_a, (edge.length - len_b * cos_b) / cos_a)
 
-        # Fix tabs for sticking targets with small angles
-        # try:
-        #     other_face_neighbor_left = other.neighbor_left
-        #     other_face_neighbor_right = other.neighbor_right
-        #     other_edge_neighbor_a = other_face_neighbor_left.vb.co - other.vb.co
-        #     other_edge_neighbor_b = other_face_neighbor_right.va.co - other.va.co
-        #     # Adjacent angles in the face
-        #     cos_a = max(cos_a,
-        #                 -other_edge.dot(other_edge_neighbor_a) / (other_edge.length * other_edge_neighbor_a.length))
-        #     cos_b = max(cos_b,
-        #                 other_edge.dot(other_edge_neighbor_b) / (other_edge.length * other_edge_neighbor_b.length))
-        # except AttributeError:  # neighbor data may be missing for edges with 3+ faces
-        #     pass
-        # except ZeroDivisionError:
-        #     pass
+        sin_b = abs(1 - cos_b ** 2) ** 0.5
+        len_a = min(len_a, (edge.length * sin_b) / (sin_a * cos_b + sin_b * cos_a))
+        len_b = 0 if sin_b == 0 else min(sticker_width / sin_b, (edge.length - len_a * cos_a) / cos_b)
+
+        tangent = edge.normalized() #this is a Vector
+        cos = tangent.x
+        sin = tangent.y
+
+        self.rot = M.Matrix(((cos, -sin), (sin, cos)))
+
+        self.width = sticker_width
+
+        if(uvedge.type == 'pin'):
+            pin = PinSticker(uvedge, default_width, index, other, isreversed)
+            tab_verts = []
+            tab_verts_co = []
+            for i in range(len(pin.geometry)):
+                if not (pin.geometry_co[i][0] == 0.5):
+                    vi = UVVertex((second_vertex.co + self.rot @ pin.geometry_co[i]))
+                else:
+                    vi = UVVertex((pin.geometry_co[i]))
+                tab_verts.insert(len(tab_verts), vi)
+                tab_verts_co.insert(len(tab_verts), vi.co)
+
+            self.vertices = []
+            self.vertices = tab_verts
+            self.vertices.insert(len(tab_verts), first_vertex)
+            self.vertices.insert(0, second_vertex)
+
+            # if index and uvedge.uvface.island is not other.uvface.island:
+            #     self.text = "{}:{}".format(other.uvface.island.abbreviation, index)
+            # else:
+            self.text = ""
+
+            self.center = (uvedge.va.co + uvedge.vb.co) / 2
+            self.bounds = tab_verts_co
+            self.bounds.insert(len(tab_verts_co), self.center)
+        elif(uvedge.type == 'tooth'):
+            sawtooth = SawtoothSticker(uvedge, default_width, index, other, isreversed)
+            tab_verts = []
+            tab_verts_co = []
+            for i in range(len(sawtooth.geometry)):
+                if not(sawtooth.geometry_co[i][0] == 0.5):
+                    vi = UVVertex((second_vertex.co + self.rot @ sawtooth.geometry_co[i]))
+                else:
+                    vi = UVVertex(( sawtooth.geometry_co[i]))
+                tab_verts.insert(len(tab_verts), vi)
+                tab_verts_co.insert(len(tab_verts), vi.co)
+
+            #OPTIONAL ADJUSTMENT: +  self.rot @ M.Vector((0, self.width * 0.2))
+            self.vertices = []
+            self.vertices = tab_verts
+            self.vertices.insert(len(tab_verts), first_vertex)
+            self.vertices.insert(0, second_vertex)
+
+
+            # if index and uvedge.uvface.island is not other.uvface.island:
+            #     self.text = "{}:{}".format(other.uvface.island.abbreviation, index)
+            # else:
+            self.text = ""
+
+            self.center = (uvedge.va.co + uvedge.vb.co) / 2
+            self.bounds = tab_verts_co
+            self.bounds.insert(len(tab_verts_co), self.center)
+        else:
+
+            other_first, other_second = (other.va, other.vb) if not other.uvface.flipped else (other.vb, other.va)
+            other_edge = other_second.co - other_first.co
+
+            # fix overlaps with the most often neighbour - its sticking target
+            if first_vertex == other_second:
+                cos_a = max(cos_a, edge.dot(other_edge) / (edge.length_squared))  # angles between pi/3 and 0
+            elif second_vertex == other_first:
+                cos_b = max(cos_b, edge.dot(other_edge) / (edge.length_squared))  # angles between pi/3 and 0
+
+            # Fix tabs for sticking targets with small angles
+            try:
+                other_face_neighbor_left = other.neighbor_left
+                other_face_neighbor_right = other.neighbor_right
+                other_edge_neighbor_a = other_face_neighbor_left.vb.co - other.vb.co
+                other_edge_neighbor_b = other_face_neighbor_right.va.co - other.va.co
+                # Adjacent angles in the face
+                cos_a = max(cos_a,
+                            -other_edge.dot(other_edge_neighbor_a) / (other_edge.length * other_edge_neighbor_a.length))
+                cos_b = max(cos_b,
+                            other_edge.dot(other_edge_neighbor_b) / (other_edge.length * other_edge_neighbor_b.length))
+            except AttributeError:  # neighbor data may be missing for edges with 3+ faces
+                pass
+            except ZeroDivisionError:
+                pass
+
+            # Calculate the lengths of the glue tab edges using the possibly smaller angles
+            sin_a = abs(1 - cos_a ** 2) ** 0.5
+            len_b = min(len_a, (edge.length * sin_a) / (sin_a * cos_b + sin_b * cos_a))
+            len_a = 0 if sin_a == 0 else min(sticker_width / sin_a, (edge.length - len_b * cos_b) / cos_a)
+
+            sin_b = abs(1 - cos_b ** 2) ** 0.5
+            len_a = min(len_a, (edge.length * sin_b) / (sin_a * cos_b + sin_b * cos_a))
+            len_b = 0 if sin_b == 0 else min(sticker_width / sin_b, (edge.length - len_a * cos_a) / cos_b)
+
+            v3 = UVVertex(second_vertex.co + M.Matrix(((cos_b, -sin_b), (sin_b, cos_b))) @ edge * len_b / edge.length)
+            v4 = UVVertex(first_vertex.co + M.Matrix(((-cos_a, -sin_a), (sin_a, -cos_a))) @ edge * len_a / edge.length)
+            if v3.co != v4.co:
+                self.vertices = [second_vertex, v3, v4, first_vertex]
+            else:
+                self.vertices = [second_vertex, v3, first_vertex]
+
+            sin, cos = edge.y / edge.length, edge.x / edge.length
+            self.rot = M.Matrix(((cos, -sin), (sin, cos)))
+            self.width = sticker_width * 0.9
+            # if index and uvedge.uvface.island is not other.uvface.island:
+            #     self.text = "{}:{}".format(other.uvface.island.abbreviation, index)
+            # else:
+            #     self.text = index
+            self.text = ""
+            self.center = (uvedge.va.co + uvedge.vb.co) / 2 + self.rot @ M.Vector((0, self.width * 0.2))
+            self.bounds = [v3.co, v4.co, self.center] if v3.co != v4.co else [v3.co, self.center]
+
+
+class PourHoleSticker:
+    __slots__ = ('bounds', 'center', 'rot', 'text', 'width', 'vertices', "pattern", "geometry", "geometry_co")
+
+    def __init__(self, uvedge):
+        first_vertex, second_vertex = (uvedge.va, uvedge.vb) if not uvedge.uvface.flipped else (uvedge.vb, uvedge.va)
+        edge = first_vertex.co - second_vertex.co
+        self.width = edge.length
+        self.pattern = PourHolePattern()
+        midsection_count = 1
+        midsection_width = self.pattern.width * midsection_count
+        offset_left = (self.width - midsection_width) / 2
+        offset_right = (self.width - midsection_width) / 2
+        self.geometry, self.geometry_co = self.construct(offset_left, midsection_count, self.pattern)
+
+    def construct(self, offset_left, midsection_count, pattern):
+        tab_verts = []
+        tab_verts_co = []
+        tab = self.pattern.getGeometry()
+        for n in range(0, midsection_count):
+            for i in range(len(tab)):
+                if not(tab[i].co.x == 0.5):
+                    vi = UVVertex((tab[i].co) + M.Vector((self.pattern.width * n + offset_left, 0)))
+                else:
+                    vi = UVVertex((tab[i].co))
+
+                tab_verts.insert(len(tab_verts), vi)
+                tab_verts_co.insert(len(tab_verts), vi.co)
+
+        return tab_verts, tab_verts_co
+class PourHole:
+    """Mark in the document: sticker tab"""
+    __slots__ = ('bounds', 'center', 'rot', 'text', 'width', 'vertices')
+
+    def __init__(self, uvedge):
+        first_vertex, second_vertex = (uvedge.va, uvedge.vb)
+        edge = first_vertex.co - second_vertex.co
+        sticker_width = edge.length / 2
+
+        cos_a = cos_b = 0.5
+        sin_a = sin_b = 0.75 ** 0.5
+        # len_a is length of the side adjacent to vertex a, len_b likewise
+        len_a = len_b = sticker_width / sin_a
+
 
         # Calculate the lengths of the glue tab edges using the possibly smaller angles
         sin_a = abs(1 - cos_a ** 2) ** 0.5
@@ -1629,22 +1951,16 @@ class Sticker:
         tangent = edge.normalized() #this is a Vector
         cos = tangent.x
         sin = tangent.y
-        print("**********************************")
-        print(tangent)
-        print(tangent.x)
+
         self.rot = M.Matrix(((cos, -sin), (sin, cos)))
 
         self.width = sticker_width
-
-        if(uvedge.is_kerf):
-            sawtooth = PinSticker(uvedge, default_width, index, other, isreversed)
-        else:
-            sawtooth = SawtoothSticker(uvedge, default_width, index, other, isreversed)
+        sawtooth = PourHoleSticker(uvedge)
         tab_verts = []
         tab_verts_co = []
         for i in range(len(sawtooth.geometry)):
             if not(sawtooth.geometry_co[i][0] == 0.5):
-                vi = UVVertex((second_vertex.co + self.rot @ sawtooth.geometry_co[i]))
+                vi = UVVertex((first_vertex.co - self.rot @ sawtooth.geometry_co[i]))
             else:
                 vi = UVVertex(( sawtooth.geometry_co[i]))
             tab_verts.insert(len(tab_verts), vi)
@@ -1653,13 +1969,6 @@ class Sticker:
         #OPTIONAL ADJUSTMENT: +  self.rot @ M.Vector((0, self.width * 0.2))
         self.vertices = []
         self.vertices = tab_verts
-        self.vertices.insert(len(tab_verts), first_vertex)
-        self.vertices.insert(0, second_vertex)
-
-
-        # if index and uvedge.uvface.island is not other.uvface.island:
-        #     self.text = "{}:{}".format(other.uvface.island.abbreviation, index)
-        # else:
         self.text = ""
 
         self.center = (uvedge.va.co + uvedge.vb.co) / 2
@@ -1810,6 +2119,15 @@ class SVG:
                                     pos=self.format_vertex(marker.center, island.pos),
                                     mat=format_matrix(marker.rot),
                                     size=marker.width * 1000))
+                        elif isinstance(marker, PourHole):
+                            data_stickerfill.append("M {} Z".format(
+                                line_through_sticker(self.format_vertex(vertex.co, island.pos)  for vertex in marker.vertices)))
+                            if marker.text:
+                                data_markers.append(self.text_transformed_tag.format(
+                                    label=marker.text,
+                                    pos=self.format_vertex(marker.center, island.pos),
+                                    mat=format_matrix(marker.rot),
+                                    size=marker.width * 1000))
                         elif isinstance(marker, Arrow):
                             size = marker.size * 1000
                             position = marker.center + marker.size * marker.rot @ M.Vector((0, -0.9))
@@ -1836,6 +2154,9 @@ class SVG:
                             if uvedge.sticker:
                                 data_loop.extend(
                                     self.format_vertex(vertex.co, island.pos) for vertex in uvedge.sticker.vertices[1:])
+                            elif uvedge.pourhole:
+                                data_loop.extend(
+                                    self.format_vertex(vertex.co, island.pos) for vertex in uvedge.pourhole.vertices[1:])
                             else:
                                 vertex = uvedge.vb if uvedge.uvface.flipped else uvedge.va
                                 data_loop.append(self.format_vertex(vertex.co, island.pos))
@@ -1849,7 +2170,7 @@ class SVG:
                     visited_edges = set()
                     for loop, uvedge in island.edges.items():
                         edge = mesh.edges[loop.edge]
-                        if edge.is_cut(uvedge.uvface.face) and not uvedge.sticker:
+                        if edge.is_cut(uvedge.uvface.face) and not (uvedge.sticker or uvedge.pourhole):
                             continue
                         data_uvedge = "M {}".format(
                             line_through_simple(
@@ -1861,14 +2182,13 @@ class SVG:
                         if vertex_pair not in visited_edges:
                             visited_edges.add(vertex_pair)
                             if edge.angle > self.angle_epsilon:
-                                if(edge.is_kerf):
-                                    print("ADDED((((((((((((((((((")
+                                # if(edge.is_kerf):
                                 data_convex.append(data_uvedge)
                             # elif edge.angle < -self.angle_epsilon:
                             else:
                                 data_concave.append(data_uvedge)
-                                if(edge.is_kerf):
-                                    print("ADDED))))))))))))))))))))))")
+                                # if(edge.is_kerf):
+                                #     print("ADDED))))))))))))))))))))))")
                     if island.is_inside_out:
                         data_convex, data_concave = data_concave, data_convex
 
@@ -2015,8 +2335,7 @@ class PDF:
             lists = list()
             curr = list()
             for point in seq:
-                # print("POINT = ")
-                # print(point.co)
+                print(point.co)
                 if(point.co.x == 0.5):
                     lists.append(curr)
                     curr = list()
@@ -2133,6 +2452,15 @@ class PDF:
                                 mat=marker.rot,
                                 align=-500 * self.text_width(marker.text, marker.width),
                                 size=1000 * marker.width))
+                    elif isinstance(marker, PourHole):
+                        data_stickerfill.append(line_through_sticker(marker.vertices))
+                        if marker.text:
+                            data_markers.append(self.command_sticker.format(
+                                label=marker.text,
+                                pos=1000 * marker.center,
+                                mat=marker.rot,
+                                align=-500 * self.text_width(marker.text, marker.width),
+                                size=1000 * marker.width))
                     elif isinstance(marker, Arrow):
                         size = 1000 * marker.size
                         position = 1000 * (marker.center + marker.size * marker.rot @ M.Vector((0, -0.9)))
@@ -2156,6 +2484,8 @@ class PDF:
                     while 1:
                         if uvedge.sticker:
                             data_loop.extend(uvedge.sticker.vertices[1:])
+                        elif uvedge.pourhole:
+                            data_loop.extend(uvedge.pourhole.vertices[1:])
                         else:
                             vertex = uvedge.vb if uvedge.uvface.flipped else uvedge.va
                             data_loop.append(vertex)
@@ -2168,7 +2498,7 @@ class PDF:
 
                 for loop, uvedge in island.edges.items():
                     edge = mesh.edges[loop.edge]
-                    if edge.is_cut(uvedge.uvface.face) and not uvedge.sticker:
+                    if edge.is_cut(uvedge.uvface.face) and not (uvedge.sticker or uvedge.pourhole):
                         continue
                     data_uvedge = line_through_simple((uvedge.va, uvedge.vb)) + "S"
                     if edge.freestyle:
@@ -2176,13 +2506,13 @@ class PDF:
                     # each uvedge exists in two opposite-oriented variants; we want to add each only once
                     if uvedge.sticker or uvedge.uvface.flipped != (id(uvedge.va) > id(uvedge.vb)):
                         if edge.angle > self.angle_epsilon:
-                            if(edge.is_kerf):
-                                print("ADDED((((((((((((((((((")
+                            # if(edge.is_kerf):
+                                # print("ADDED((((((((((((((((((")
                             data_convex.append(data_uvedge)
                         # elif edge.angle < -self.angle_epsilon:
                         else:
-                            if(edge.is_kerf):
-                                print("ADDED))))))))))))))))))")
+                            # if(edge.is_kerf):
+                                # print("ADDED))))))))))))))))))")
                             data_concave.append(data_uvedge)
                 if island.is_inside_out:
                     data_convex, data_concave = data_concave, data_convex
@@ -2260,10 +2590,20 @@ class Unfold(bpy.types.Operator):
     do_create_uvmap: bpy.props.BoolProperty(
         name="Create UVMap", description="Create a new UV Map showing the islands and page layout", default=False)
     object = None
-
+    # dropdown_list = bpy.props.EnumProperty(
+    #     name="Edge Type",
+    #     items=(
+    #         ('1', 'Auto', ''),
+    #         ('2', 'Pin Join', ''),
+    #         ('3', 'Sawtooth Join', ''),
+    #         ('4', 'Glue Tab', ''),
+    #     ),
+    #     update=myindex
+    # )
     @classmethod
     def poll(cls, context):
         return context.active_object and context.active_object.type == "MESH"
+
 
     def draw(self, context):
         layout = self.layout
@@ -2276,6 +2616,8 @@ class Unfold(bpy.types.Operator):
         col.prop(self.properties, "priority_effect_convex", text="Convex")
         col.prop(self.properties, "priority_effect_concave", text="Concave")
         layout.prop(self.properties, "priority_effect_length", text="Edge Length")
+        row = layout.row()
+        row.prop(context.scene, "dropdown_list")
 
     def execute(self, context):
         sce = bpy.context.scene
@@ -2346,6 +2688,46 @@ class ClearAllSeams(bpy.types.Operator):
             edge.use_seam = False
         mesh.paper_island_list.clear()
 
+        return {'FINISHED'}
+
+class ApplyEdgeType(bpy.types.Operator):
+
+    bl_idname = "mesh.apply_edge_type"
+    bl_label = "Apply Edge Type"
+    bl_description = "Apply Edge Type"
+
+    @classmethod
+    def poll(cls, context):
+        return context.active_object and context.active_object.type == 'MESH'
+
+    def execute(self, context):
+
+        ob = context.object
+        # ob.update_from_editmode()  # not available in older versions!
+        # selectedEdges= [e for e in ob.data.edges if e.select]
+
+
+
+        me = ob.data
+        bm = bmesh.from_edit_mesh(me)
+        selectedEdges = [e.index for e in bm.edges if e.select]
+        selectedEdgesSeams = [e for e in bm.edges if e.select]
+
+        print(len(selectedEdges))
+        print(current_edge)
+        if(current_edge == "pin"):
+            pin_edges.extend(selectedEdges)
+        elif(current_edge == "tooth"):
+            sawtooth_edges.extend(selectedEdges)
+        elif(current_edge == "glue"):
+            glue_edges.extend(selectedEdges)
+        print(pin_edges)
+        print(sawtooth_edges)
+        print(glue_edges)
+
+        for edge in selectedEdgesSeams:
+            edge.seam = True
+        bmesh.update_edit_mesh(me)
         return {'FINISHED'}
 
 
@@ -2596,6 +2978,8 @@ class ExportPaperModel(bpy.types.Operator):
         row.operator("export_mesh.paper_model_preset_add", text="", icon='ADD')
         row.operator("export_mesh.paper_model_preset_add", text="", icon='REMOVE').remove_active = True
 
+        row.prop(context.scene, "dropdown_list")
+
         layout.prop(self.properties, "scale", text="Scale: 1/")
         scale_ratio = self.get_scale_ratio(context.scene)
         if scale_ratio > 1:
@@ -2791,6 +3175,10 @@ class VIEW3D_PT_paper_model_tools(bpy.types.Panel):
         mesh = obj.data if obj and obj.type == 'MESH' else None
 
         layout.operator("mesh.unfold")
+        row = layout.row()
+        row.prop(context.scene, "dropdown_list")
+        layout.operator("mesh.apply_edge_type")
+
 
         if context.mode == 'EDIT_MESH':
             row = layout.row(align=True)
@@ -2815,6 +3203,9 @@ class VIEW3D_PT_paper_model_settings(bpy.types.Panel):
         layout.operator("export_mesh.paper_model")
         props = sce.paper_model
         layout.prop(props, "scale", text="Model Scale:  1/")
+        # row = layout.row()
+        # row.prop(context.scene, "dropdown_list")
+
 
         layout.prop(props, "limit_by_page")
         col = layout.column()
@@ -2860,9 +3251,12 @@ class DATA_PT_paper_model_islands(bpy.types.Panel):
                 row = sub.row()
                 row.active = not list_item.auto_abbrev
                 row.prop(list_item, "abbreviation")
+
+
         else:
             layout.box().label(text="Not unfolded")
 
+        row.prop(context.scene, "dropdown_list")
 
 def label_changed(self, context):
     """The label of an island was changed"""
@@ -2951,6 +3345,7 @@ module_classes = (
     Unfold,
     ExportPaperModel,
     ClearAllSeams,
+    ApplyEdgeType,
     SelectIsland,
     AddPresetPaperModel,
     FaceList,
@@ -2962,6 +3357,16 @@ module_classes = (
     VIEW3D_PT_paper_model_settings,
 )
 
+def myindex(self, context):
+    global current_edge
+    if (int(context.scene.dropdown_list) == 1):
+        current_edge = "auto"
+    elif(int(context.scene.dropdown_list) == 2):
+        current_edge = "pin"
+    elif(int(context.scene.dropdown_list) == 3):
+        current_edge = "tooth"
+    elif(int(context.scene.dropdown_list) == 4):
+        current_edge = "glue"
 
 def register():
     for cls in module_classes:
@@ -2974,6 +3379,17 @@ def register():
     bpy.types.Mesh.paper_island_index = bpy.props.IntProperty(
         name="Island List Index",
         default=-1, min=-1, max=100, options={'SKIP_SAVE'}, update=island_index_changed)
+
+    bpy.types.Scene.dropdown_list = bpy.props.EnumProperty(
+        name="Edge Type",
+        items=(
+            ('1', 'Auto', ''),
+            ('2', 'Pin Join', ''),
+            ('3', 'Sawtooth Join', ''),
+            ('4', 'Glue Tab', ''),
+        ),
+        update=myindex
+    )
     bpy.types.TOPBAR_MT_file_export.append(menu_func_export)
     bpy.types.VIEW3D_MT_edit_mesh.prepend(menu_func_unfold)
 
