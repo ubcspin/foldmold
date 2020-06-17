@@ -79,40 +79,6 @@ current_edge = "auto"
 
 
 
-def pairs(sequence):
-    """Generate consecutive pairs throughout the given sequence; at last, it gives elements last, first."""
-    i = iter(sequence)
-    previous = first = next(i)
-    for this in i:
-        yield previous, this
-        previous = this
-    yield this, first
-
-
-def fitting_matrix(v1, v2):
-    """Get a matrix that rotates v1 to the same direction as v2"""
-    return (1 / v1.length_squared) * M.Matrix((
-        (v1.x * v2.x + v1.y * v2.y, v1.y * v2.x - v1.x * v2.y),
-        (v1.x * v2.y - v1.y * v2.x, v1.x * v2.x + v1.y * v2.y)))
-
-
-def z_up_matrix(n):
-    """Get a rotation matrix that aligns given vector upwards."""
-    b = n.xy.length
-    s = n.length
-    if b > 0:
-        return M.Matrix((
-            (n.x * n.z / (b * s), n.y * n.z / (b * s), -b / s),
-            (-n.y / b, n.x / b, 0),
-            (0, 0, 0)
-        ))
-    else:
-        # no need for rotation
-        return M.Matrix((
-            (1, 0, 0),
-            (0, (-1 if n.z < 0 else 1), 0),
-            (0, 0, 0)
-        ))
 
 
 def cage_fit(points, aspect):
@@ -121,7 +87,7 @@ def cage_fit(points, aspect):
 
     def guesses(polygon):
         """Yield all tentative extrema of the bounding box height wrt. polygon rotation"""
-        for a, b in pairs(polygon):
+        for a, b in u.pairs(polygon):
             if a == b:
                 continue
             direction = (b - a).normalized()
@@ -1157,10 +1123,10 @@ def join(uvedge_a, uvedge_b, size_limit=None, epsilon=1e-6):
     # Such situation may occur in the case of twisted n-gons
     first_b, second_b = (uvedge_b.va, uvedge_b.vb) if not verts_flipped else (uvedge_b.vb, uvedge_b.va)
     if not flipped:
-        rot = fitting_matrix(first_b.co - second_b.co, uvedge_a.vb.co - uvedge_a.va.co)
+        rot = u.fitting_matrix(first_b.co - second_b.co, uvedge_a.vb.co - uvedge_a.va.co)
     else:
         flip = M.Matrix(((-1, 0), (0, 1)))
-        rot = fitting_matrix(flip @ (first_b.co - second_b.co), uvedge_a.vb.co - uvedge_a.va.co) @ flip
+        rot = u.fitting_matrix(flip @ (first_b.co - second_b.co), uvedge_a.vb.co - uvedge_a.va.co) @ flip
     trans = uvedge_a.vb.co - rot @ first_b.co
     # preview of island_b's vertices after the join operation
     phantoms = {uvvertex: UVVertex(rot @ uvvertex.co + trans) for uvvertex in island_b.vertices.values()}
@@ -1240,7 +1206,7 @@ def join(uvedge_a, uvedge_b, size_limit=None, epsilon=1e-6):
         if len(segments) <= 2:
             continue
         segments.sort(key=slope_from(position))
-        for right, left in pairs(segments):
+        for right, left in u.pairs(segments):
             is_left_ccw = left.is_uvface_upwards() ^ (left.max.tup == position)
             is_right_ccw = right.is_uvface_upwards() ^ (right.max.tup == position)
             if is_right_ccw and not is_left_ccw and type(right) is not type(
@@ -1398,7 +1364,7 @@ class UVFace:
         self.island = island
         self.flipped = False  # a flipped UVFace has edges clockwise
 
-        flatten = z_up_matrix(normal_matrix @ face.normal) @ matrix
+        flatten = u.z_up_matrix(normal_matrix @ face.normal) @ matrix
         self.vertices = {loop: UVVertex(flatten @ loop.vert.co) for loop in face.loops}
         self.edges = {loop: UVEdge(self.vertices[loop], self.vertices[loop.link_loop_next], self, loop, self.face.smooth) for loop in
                       face.loops}
