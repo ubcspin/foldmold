@@ -1,4 +1,4 @@
-Note: you may need to change version numbers, i.e., 3.7 -> 3.8, or 2.81 -> 2.90.
+Note: you may need to change version numbers, i.e., 3.7 -> 3.8, or 2.81 -> 2.90. Although 3.8 is giving some segfaults.
 
 ## Pre-requisite
 1. Xcode (>=8.5)
