@@ -73,6 +73,8 @@ pin_edges = []
 sawtooth_edges = []
 glue_edges = []
 current_edge = "auto"
+current_score_num = 5
+scoredir = 'x'
 
 def first_letters(text):
     """Iterator over the first letter of each word"""
@@ -2730,6 +2732,40 @@ class ApplyEdgeType(bpy.types.Operator):
         bmesh.update_edit_mesh(me)
         return {'FINISHED'}
 
+class ApplyScores(bpy.types.Operator):
+
+    bl_idname = "mesh.apply_scores"
+    bl_label = "Apply Scores"
+    bl_description = "Apply Scores"
+
+    @classmethod
+    def poll(cls, context):
+        return context.active_object and context.active_object.type == 'MESH'
+
+    def execute(self, context):
+        ob = context.object
+        me = ob.data
+        bm = bmesh.from_edit_mesh(me)
+        selectedEdges = [e for e in bm.edges if e.select]
+
+        dirlist = []
+        scoreedges = []
+        for e in selectedEdges:
+            diff = e.verts[0].co - e.verts[1].co
+
+            if(scoredir == 'x' and abs(diff.x) > abs(diff.y) and abs(diff.x) > abs(diff.z)):
+                dirlist.append(e)
+            elif(scoredir == 'y' and abs(diff.y) > abs(diff.x) and abs(diff.y) > abs(diff.z)):
+                dirlist.append(e)
+            elif (scoredir == 'z' and abs(diff.z) > abs(diff.y) and abs(diff.z) > abs(diff.x)):
+                dirlist.append(e)
+            else:
+                scoreedges.append(e)
+        bmesh.ops.subdivide_edges(bm, edges=scoreedges, cuts=current_score_num)
+        bmesh.update_edit_mesh(me)
+
+        return {'FINISHED'}
+
 
 def page_size_preset_changed(self, context):
     """Update the actual document size to correct values"""
@@ -3179,14 +3215,17 @@ class VIEW3D_PT_paper_model_tools(bpy.types.Panel):
         row.prop(context.scene, "dropdown_list")
         layout.operator("mesh.apply_edge_type")
 
-
         if context.mode == 'EDIT_MESH':
             row = layout.row(align=True)
             row.operator("mesh.mark_seam", text="Mark Seam").clear = False
             row.operator("mesh.mark_seam", text="Clear Seam").clear = True
         else:
             layout.operator("mesh.clear_all_seams")
-
+        row = layout.row()
+        row.prop(context.scene, "score_direction")
+        row = layout.row()
+        row.prop(context.scene, "score_num")
+        layout.operator("mesh.apply_scores")
 
 class VIEW3D_PT_paper_model_settings(bpy.types.Panel):
     bl_space_type = 'VIEW_3D'
@@ -3346,6 +3385,7 @@ module_classes = (
     ExportPaperModel,
     ClearAllSeams,
     ApplyEdgeType,
+    ApplyScores,
     SelectIsland,
     AddPresetPaperModel,
     FaceList,
@@ -3357,7 +3397,7 @@ module_classes = (
     VIEW3D_PT_paper_model_settings,
 )
 
-def myindex(self, context):
+def index_edge(self, context):
     global current_edge
     if (int(context.scene.dropdown_list) == 1):
         current_edge = "auto"
@@ -3367,6 +3407,21 @@ def myindex(self, context):
         current_edge = "tooth"
     elif(int(context.scene.dropdown_list) == 4):
         current_edge = "glue"
+
+def index_score(self, context):
+
+    global scoredir
+    if (int(context.scene.score_direction) == 1):
+        scoredir = 'x'
+    elif(int(context.scene.score_direction) == 2):
+        scoredir = 'y'
+    elif(int(context.scene.score_direction) == 3):
+        scoredir = 'z'
+
+
+def score_density(self, context):
+    global current_score_num
+    current_score_num = context.scene.score_num
 
 def register():
     for cls in module_classes:
@@ -3388,8 +3443,26 @@ def register():
             ('3', 'Sawtooth Join', ''),
             ('4', 'Glue Tab', ''),
         ),
-        update=myindex
+        update=index_edge
     )
+    bpy.types.Scene.score_direction = bpy.props.EnumProperty(
+        name="Score axis",
+        items=(
+            ('1', 'x', ''),
+            ('2', 'y', ''),
+            ('3', 'z', ''),
+        ),
+        update=index_score
+    )
+
+    bpy.types.Scene.score_num = bpy.props.IntProperty(
+        name="Number of Scores",
+        default=5,
+        min=1,
+        max=20,
+        update=score_density
+    )
+
     bpy.types.TOPBAR_MT_file_export.append(menu_func_export)
     bpy.types.VIEW3D_MT_edit_mesh.prepend(menu_func_unfold)
 
