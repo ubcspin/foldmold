@@ -36,12 +36,8 @@ bl_info = {
 import bpy
 
 from . import auto_load
-# from . import utilities
 
 auto_load.init()
-
-# sys.path.append(".")
-# from . import utilities
 
 # register
 ##################################
