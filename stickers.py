@@ -58,8 +58,6 @@ class Stickers:
             path_vectors += self.vectorize_paths(path)
         return self.vertices.copy()
 
-
-
     def vectorize_paths(self, path):
         # "M0,0H250V395.28a104.71,104.71,0,0,0,11.06,46.83h0A104.71,104.71,0,0,0,354.72,500h40.56a104.71,104.71,0,0,0,93.66-57.89h0A104.71,104.71,0,0,0,500,395.28V0"
         r = re.compile('[MmHhAaVv][\d,\.-]*')  # split by commands

@@ -1,5 +1,7 @@
 import functools 
 import unittest
+import svglib
+from lxml import etree
 
 ## Fundamental stickers
 class AbstractSticker:
@@ -15,7 +17,6 @@ class AbstractSticker:
 
     def getWidth(self):
         return self.width
-
 
 class Tooth(AbstractSticker):
     def __init__(self):
@@ -75,6 +76,26 @@ class PourHolePattern(AbstractPattern):
         AbstractPattern.__init__(self, isreversed, [PourHoleTile()], [PourHoleTile()])
 
 
+
+class StickerHandler:
+    __instance = None
+    @staticmethod 
+    def getInstance():
+        """ Static access method. """
+        if StickerHandler.__instance == None:
+            StickerHandler()
+        return StickerHandler.__instance
+    def __init__(self):
+        """ Virtually private constructor. """
+        if StickerHandler.__instance != None:
+            raise Exception("This class is a singleton! You only want one StickerHandler.")
+        else:
+            StickerHandler.__instance = self
+
+    self.pin_edges = []
+    self.sawtooth_edges = []
+    self.glue_edges = []
+
 ## Unit tests
 class TestTileMethods(unittest.TestCase):
     def test_widths(self):
@@ -108,6 +129,13 @@ class TestTileMethods(unittest.TestCase):
         self.assertTrue(sp.isreversed == False)
         self.assertTrue(isinstance(sp.tileset[0], Tooth))
         self.assertTrue(isinstance(sp.tileset[1], Gap))
+
+    def test_singleton(self):
+        s = StickerHandler()
+        s1 = StickerHandler.getInstance()
+        s2 = StickerHandler.getInstance()
+        self.assertEqual(s1, s2)
+
 
 if __name__ == '__main__':
     unittest.main()
