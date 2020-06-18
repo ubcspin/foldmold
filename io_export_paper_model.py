@@ -7,7 +7,7 @@
 # * Unfolding and baking
 # * Export (SVG or PDF)
 # * User interface
-# During the unfold process, the mesh is mirrored into a 2D structure: UVFace, UVEdge, UVVertex.
+# During the unfold process, the mesh is mirrored into a 2D structure: UVFace, UVEdge, s.UVVertex.
 
 # bl_info = {
 #     "name": "Export Paper Model",
@@ -39,8 +39,7 @@
 #  * append a number to the conflicting names or
 #  * enumerate faces uniquely within all islands of the same name (requires a check that both label and abbr. equals)
 
-import svglib
-from svglib.svglib import svg2rlg
+
 import copy
 import bpy
 import bl_operators
@@ -51,12 +50,14 @@ from itertools import chain, repeat, product, combinations
 from math import pi, ceil, asin, atan2, floor
 import os.path as os_path
 import sys
-import logging
-from lxml import etree
 import re
 
 from . import utilities
 u = utilities.Utilities()
+
+from . import stickers
+s = stickers.Stickers()
+
 
 default_priority_effect = {
     'CONVEX': 0.5,
@@ -76,65 +77,6 @@ pin_edges = []
 sawtooth_edges = []
 glue_edges = []
 current_edge = "auto"
-
-
-
-
-
-def cage_fit(points, aspect):
-    """Find rotation for a minimum bounding box with a given aspect ratio
-    returns a tuple: rotation angle, box height"""
-
-    def guesses(polygon):
-        """Yield all tentative extrema of the bounding box height wrt. polygon rotation"""
-        for a, b in u.pairs(polygon):
-            if a == b:
-                continue
-            direction = (b - a).normalized()
-            sinx, cosx = -direction.y, direction.x
-            rot = M.Matrix(((cosx, -sinx), (sinx, cosx)))
-            rot_polygon = [rot @ p for p in polygon]
-            left, right = [fn(rot_polygon, key=lambda p: p.to_tuple()) for fn in (min, max)]
-            bottom, top = [fn(rot_polygon, key=lambda p: p.yx.to_tuple()) for fn in (min, max)]
-            # print(f"{rot_polygon.index(left)}-{rot_polygon.index(right)}, {rot_polygon.index(bottom)}-{rot_polygon.index(top)}")
-            horz, vert = right - left, top - bottom
-            # solve (rot * a).y == (rot * b).y
-            yield max(aspect * horz.x, vert.y), sinx, cosx
-            # solve (rot * a).x == (rot * b).x
-            yield max(horz.x, aspect * vert.y), -cosx, sinx
-            # solve aspect * (rot * (right - left)).x == (rot * (top - bottom)).y
-            # using substitution t = tan(rot / 2)
-            q = aspect * horz.x - vert.y
-            r = vert.x + aspect * horz.y
-            t = ((r ** 2 + q ** 2) ** 0.5 - r) / q if q != 0 else 0
-            t = -1 / t if abs(t) > 1 else t  # pick the positive solution
-            siny, cosy = 2 * t / (1 + t ** 2), (1 - t ** 2) / (1 + t ** 2)
-            rot = M.Matrix(((cosy, -siny), (siny, cosy)))
-            for p in rot_polygon:
-                p[:] = rot @ p  # note: this also modifies left, right, bottom, top
-            # print(f"solve {aspect * (right - left).x} == {(top - bottom).y} with aspect = {aspect}")
-            if left.x < right.x and bottom.y < top.y and all(
-                    left.x <= p.x <= right.x and bottom.y <= p.y <= top.y for p in rot_polygon):
-                # print(f"yield {max(aspect * (right - left).x, (top - bottom).y)}")
-                yield max(aspect * (right - left).x,
-                          (top - bottom).y), sinx * cosy + cosx * siny, cosx * cosy - sinx * siny
-
-    polygon = [points[i] for i in M.geometry.convex_hull_2d(points)]
-    height, sinx, cosx = min(guesses(polygon))
-    return atan2(sinx, cosx), height
-
-def create_blank_image(image_name, dimensions, alpha=1):
-    """Create a new image and assign white color to all its pixels"""
-    image_name = image_name[:64]
-    width, height = int(dimensions.x), int(dimensions.y)
-    image = bpy.data.images.new(image_name, width, height, alpha=True)
-    if image.users > 0:
-        raise UnfoldError(
-            "There is something wrong with the material of the model. "
-            "Please report this on the BlenderArtists forum. Export failed.")
-    image.pixels = [1, 1, 1, alpha] * (width * height)
-    image.file_format = 'PNG'
-    return image
 
 
 class UnfoldError(ValueError):
@@ -663,7 +605,7 @@ class Mesh:
                 if(p.x != 0.5):
                     points_c.append(p)
             # DEBUG
-            angle, _ = cage_fit(points_c, (cage_size.y - title_height) / cage_size.x)
+            angle, _ = u.cage_fit(points_c, (cage_size.y - title_height) / cage_size.x)
             rot = M.Matrix.Rotation(angle, 2)
             for point in points:
                 # note: we need an in-place operation, and Vector.rotate() seems to work for 3d vectors only
@@ -761,7 +703,7 @@ class Mesh:
 
     def save_image(self, page_size_pixels: M.Vector, filename):
         for page in self.pages:
-            image = create_blank_image("Page {}".format(page.name), page_size_pixels, alpha=1)
+            image = u.create_blank_image("Page {}".format(page.name), page_size_pixels, alpha=1)
             image.filepath_raw = page.image_path = "{}_{}.png".format(filename, page.name)
             faces = [face for island in page.islands for face in island.faces]
             self.bake(faces, image)
@@ -772,7 +714,7 @@ class Mesh:
     def save_separate_images(self, scale, filepath, embed=None):
         for i, island in enumerate(self.islands):
             image_name = "Island {}".format(i)
-            image = create_blank_image(image_name, island.bounding_box * scale, alpha=0)
+            image = u.create_blank_image(image_name, island.bounding_box * scale, alpha=0)
             self.bake(island.faces.keys(), image)
             if embed:
                 island.embedded_image = embed(image)
@@ -1129,7 +1071,7 @@ def join(uvedge_a, uvedge_b, size_limit=None, epsilon=1e-6):
         rot = u.fitting_matrix(flip @ (first_b.co - second_b.co), uvedge_a.vb.co - uvedge_a.va.co) @ flip
     trans = uvedge_a.vb.co - rot @ first_b.co
     # preview of island_b's vertices after the join operation
-    phantoms = {uvvertex: UVVertex(rot @ uvvertex.co + trans) for uvvertex in island_b.vertices.values()}
+    phantoms = {uvvertex: s.UVVertex(rot @ uvvertex.co + trans) for uvvertex in island_b.vertices.values()}
 
     # check the size of the resulting island
     if size_limit:
@@ -1141,7 +1083,7 @@ def join(uvedge_a, uvedge_b, size_limit=None, epsilon=1e-6):
             return False
         if (bbox_width > size_limit.x or bbox_height > size_limit.y) and (
                 bbox_height > size_limit.x or bbox_width > size_limit.y):
-            _, height = cage_fit(points, size_limit.y / size_limit.x)
+            _, height = u.cage_fit(points, size_limit.y / size_limit.x)
             if height > size_limit.y:
                 return False
 
@@ -1279,19 +1221,19 @@ class Page:
         self.image_path = None
 
 
-class UVVertex:
-    """Vertex in 2D"""
-    __slots__ = ('co', 'tup')
+# class UVVertex:
+#     """Vertex in 2D"""
+#     __slots__ = ('co', 'tup')
 
-    def __init__(self, vector):
-        self.co = vector.xy
-        self.tup = tuple(self.co)
+#     def __init__(self, vector):
+#         self.co = vector.xy
+#         self.tup = tuple(self.co)
 
-    def __next__(self):
-        raise StopIteration()
+#     def __next__(self):
+#         raise StopIteration()
 
-    def __iter__(self):
-        return self
+#     def __iter__(self):
+#         return self
 
 
 class UVEdge:
@@ -1302,7 +1244,7 @@ class UVEdge:
                  'min', 'max', 'bottom', 'top',
                  'neighbor_left', 'neighbor_right', 'sticker', 'is_kerf', 'type', 'pourhole')
 
-    def __init__(self, vertex1: UVVertex, vertex2: UVVertex, uvface, loop, is_kerf):
+    def __init__(self, vertex1: s.UVVertex, vertex2: s.UVVertex, uvface, loop, is_kerf):
         self.va = vertex1
         self.vb = vertex2
         self.update()
@@ -1342,7 +1284,7 @@ class PhantomUVEdge:
     """Temporary 2D Segment for calculations"""
     __slots__ = ('va', 'vb', 'min', 'max', 'bottom', 'top')
 
-    def __init__(self, vertex1: UVVertex, vertex2: UVVertex, flip):
+    def __init__(self, vertex1: s.UVVertex, vertex2: s.UVVertex, flip):
         self.va, self.vb = (vertex2, vertex1) if flip else (vertex1, vertex2)
         self.min, self.max = (self.va, self.vb) if (self.va.tup < self.vb.tup) else (self.vb, self.va)
         y1, y2 = self.va.co.y, self.vb.co.y
@@ -1365,7 +1307,7 @@ class UVFace:
         self.flipped = False  # a flipped UVFace has edges clockwise
 
         flatten = u.z_up_matrix(normal_matrix @ face.normal) @ matrix
-        self.vertices = {loop: UVVertex(flatten @ loop.vert.co) for loop in face.loops}
+        self.vertices = {loop: s.UVVertex(flatten @ loop.vert.co) for loop in face.loops}
         self.edges = {loop: UVEdge(self.vertices[loop], self.vertices[loop.link_loop_next], self, loop, self.face.smooth) for loop in
                       face.loops}
         self.uvedges = [UVEdge(self.vertices[loop], self.vertices[loop.link_loop_next], self, loop, self.face.smooth) for loop in
@@ -1401,313 +1343,13 @@ else:
     raise ValueError('Please add path for system other than windows or osx')
 
 
-logger = logging.getLogger(__name__)
-ns = {"u": "http://www.w3.org/2000/svg"}
-
-vertices = []
 
 
-def load_svg(path):
-    parser = etree.XMLParser(remove_comments=True, recover=True)
-    try:
-        doc = etree.parse(path, parser=parser)
-        svg_root = doc.getroot()
-    except Exception as exc:
-        logger.error("Failed to load input file! (%s)" % exc)
-    else:
-        return svg_root
-
-def svg2uv(path):
-    vertices.clear()
-    svg_root = load_svg(path)
-    if svg_root is None:
-        print("SVG import blowed up, no root!")
-        return
-
-    polylines = svg_root.findall("u:polyline", ns)
-    paths = svg_root.findall("u:path", ns)
-
-    # Make Polyline Vectors
-    polyline_vectors = []
-
-    for p in polylines:
-        points = p.attrib['points']
-        points += " 0.5,0.5"
-        polyline_vectors += vectorize_polylines(points)
-        # polyline_vectors += vectorize_polylines("600,600") #delimiter
-    for v in polyline_vectors:
-        makeUVVertices(v)
-
-    # Make Path vectors
-    path_vectors = []
-    for p in paths:
-        path = p.attrib['d']
-        path_vectors += vectorize_paths(path)
-    return vertices.copy()
-
-
-def vectorize_paths(path):
-    # "M0,0H250V395.28a104.71,104.71,0,0,0,11.06,46.83h0A104.71,104.71,0,0,0,354.72,500h40.56a104.71,104.71,0,0,0,93.66-57.89h0A104.71,104.71,0,0,0,500,395.28V0"
-    r = re.compile('[MmHhAaVv][\d,\.-]*')  # split by commands
-    p = re.sub(r'-', r',-', path)  # make sure to catch negatives
-    commands = r.findall(p)
-    for c in commands:
-        command = c[0]
-        parameters = [float(i) for i in c[1:].split(",")]
-        print(command, parameters)
-
-    print(commands)
-    return []
-
-
-def vectorize_polylines(points):
-    points = points.replace(",", " ")
-
-    ps = points.split()
-    xs = ps[0::2]  # every second element starting at 0
-    ys = ps[1::2]  # every second element starting at 1
-    lines = []
-
-    for i in range(0, len(xs)):
-        x1 = float(xs[i])
-        y1 = float(ys[i])
-        # fs = [float(i) for i in [x1,y1,x2,y2]]
-        o = {'x1': x1, 'y1': y1}
-        lines.append(o)
-    return lines
-
-
-def makeUVVertices(v):
-    if not (v["x1"] == 0.5):
-        v1 = UVVertex(M.Vector((v["x1"], v["y1"])) * 0.00001)  # scaling down to avoid overflow
-    else:
-        v1 = UVVertex(M.Vector((v["x1"], v["y1"]))  )  # scaling down to avoid overflow
-
-    vertices.append(v1)
 
     # print("this line goes from point [%d, %d] to point [%d, %d]" % (v["x1"], v["y1"], v["x2"], v["y2"]))
 
 
 # //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-class Tooth:
-    __slots__ = ("geometry", "width")
-    def __init__(self):
-
-        def load_geometry():
-            return svg2uv(os_path.join(path_to_stickers, "tooth.svg"))
-
-        def getWidth():
-            # get bounding box of geometry
-            return 0.005 # stub
-
-        self.geometry = load_geometry()
-        self.width = getWidth()
-class Gap:
-    __slots__ = ("geometry", "width")
-    def __init__(self):
-
-        def load_geometry():
-            return svg2uv(os_path.join(path_to_stickers, "gap.svg"))
-
-        def getWidth():
-            # get bounding box of geometry
-            return  0.003
-
-        self.geometry = load_geometry()
-        self.width = getWidth()
-
-class SawtoothPattern:
-    __slots__ = ("tileset", "width")
-    def __init__(self, isreversed):
-        def getWidth(tileset):
-            width = 0
-            for tile in tileset:
-                width += tile.width
-            return width
-
-        if(isreversed):
-            self.tileset = [Tooth(), Gap()]
-        else:
-            self.tileset = [Gap(), Tooth()]
-        self.width = getWidth(self.tileset)
-
-
-    def getGeometry(self):
-        vertices = []
-        for tile in self.tileset:
-            for vi in tile.geometry:
-                vertices.insert(len(vertices), vi)
-
-        return vertices
-
-class SawtoothSticker:
-    __slots__ = ('bounds', 'center', 'rot', 'text', 'width', 'vertices', "pattern", "geometry", "geometry_co")
-
-    def __init__(self, uvedge, default_width, index, other: UVEdge, isreversed):
-        first_vertex, second_vertex = (uvedge.va, uvedge.vb) if not uvedge.uvface.flipped else (uvedge.vb, uvedge.va)
-        edge = first_vertex.co - second_vertex.co
-        self.width = edge.length
-        self.pattern = SawtoothPattern(isreversed)
-        midsection_count = floor(self.width / self.pattern.width)
-        midsection_width = self.pattern.width * midsection_count
-        offset_left = (self.width - midsection_width) / 2
-        offset_right = (self.width - midsection_width) / 2
-        self.geometry, self.geometry_co = self.construct(offset_left, midsection_count, self.pattern)
-        # print(self.width, self.pattern.width, midsection_count)
-
-    def construct(self, offset_left, midsection_count, pattern):
-        tab_verts = []
-        tab_verts_co = []
-        tab = self.pattern.getGeometry()
-        for n in range(0, midsection_count):
-            for i in range(len(tab)):
-                if not(tab[i].co.x == 0.5):
-                    vi = UVVertex((tab[i].co) + M.Vector((self.pattern.width * n + offset_left, 0)))
-                else:
-                    vi = UVVertex((tab[i].co))
-                tab_verts.insert(len(tab_verts), vi)
-                tab_verts_co.insert(len(tab_verts), vi.co)
-
-        # print(offset_left)
-        return tab_verts, tab_verts_co
-
-
-class Hole:
-    __slots__ = ("geometry", "width")
-    def __init__(self):
-
-        def load_geometry():
-            return svg2uv(os_path.join(path_to_stickers,"hole.svg"))
-
-        def getWidth():
-            # get bounding box of geometry
-            return 0.003 # stub
-
-        self.geometry = load_geometry()
-        self.width = getWidth()
-class Connector:
-    __slots__ = ("geometry", "width")
-    def __init__(self):
-
-        def load_geometry():
-            return svg2uv(os_path.join(path_to_stickers,"gap2.svg"))
-
-        def getWidth():
-            # get bounding box of geometry
-            return  0.003
-
-        self.geometry = load_geometry()
-        self.width = getWidth()
-
-class Pin:
-    __slots__ = ("geometry", "width")
-    def __init__(self):
-
-        def load_geometry():
-            return svg2uv(os_path.join(path_to_stickers,"pin.svg"))
-
-        def getWidth():
-            # get bounding box of geometry
-            return  0.003
-
-        self.geometry = load_geometry()
-        self.width = getWidth()
-
-
-class PinPattern:
-    __slots__ = ("tileset", "width")
-    def __init__(self, isreversed):
-        def getWidth(tileset):
-            width = 0
-            for tile in tileset:
-                width += tile.width
-            return width
-
-
-        if(isreversed):
-            self.tileset = [Hole(), Connector()]
-        else:
-            self.tileset = [Pin(), Gap()]
-        self.width = getWidth(self.tileset)
-
-
-    def getGeometry(self):
-        vertices = []
-        for tile in self.tileset:
-            for vi in tile.geometry:
-                vertices.insert(len(vertices), vi)
-
-        return vertices
-
-class PourHoleTile:
-    __slots__ = ("geometry", "width")
-    def __init__(self):
-
-        def load_geometry():
-            return svg2uv(os_path.join(path_to_stickers,"pourhole.svg"))
-
-        def getWidth():
-            # get bounding box of geometry
-            return 0.003 # stub
-
-        self.geometry = load_geometry()
-        self.width = getWidth()
-
-
-class PourHolePattern:
-    __slots__ = ("tileset", "width")
-    def __init__(self):
-        def getWidth(tileset):
-            width = 0
-            for tile in tileset:
-                width += tile.width
-            return width
-
-
-        self.tileset = [PourHoleTile()]
-        self.width = getWidth(self.tileset)
-
-
-    def getGeometry(self):
-        vertices = []
-        for tile in self.tileset:
-            for vi in tile.geometry:
-                vertices.insert(len(vertices), vi)
-
-        return vertices
-
-class PinSticker:
-    __slots__ = ('bounds', 'center', 'rot', 'text', 'width', 'vertices', "pattern", "geometry", "geometry_co")
-
-    def __init__(self, uvedge, default_width, index, other: UVEdge, isreversed):
-        first_vertex, second_vertex = (uvedge.va, uvedge.vb) if not uvedge.uvface.flipped else (uvedge.vb, uvedge.va)
-        edge = first_vertex.co - second_vertex.co
-        self.width = edge.length
-        self.pattern = PinPattern(isreversed)
-        midsection_count = floor(self.width / self.pattern.width)
-        midsection_width = self.pattern.width * midsection_count
-        offset_left = (self.width - midsection_width) / 2
-        offset_right = (self.width - midsection_width) / 2
-        self.geometry, self.geometry_co = self.construct(offset_left, midsection_count, self.pattern)
-        # print(self.width, self.pattern.width, midsection_count)
-
-    def construct(self, offset_left, midsection_count, pattern):
-        tab_verts = []
-        tab_verts_co = []
-        tab = self.pattern.getGeometry()
-        for n in range(0, midsection_count):
-            for i in range(len(tab)):
-                if not(tab[i].co.x == 0.5):
-                    vi = UVVertex((tab[i].co) + M.Vector((self.pattern.width * n + offset_left, 0)))
-                else:
-                    vi = UVVertex((tab[i].co))
-
-                tab_verts.insert(len(tab_verts), vi)
-                tab_verts_co.insert(len(tab_verts), vi.co)
-
-        # print(offset_left)
-        return tab_verts, tab_verts_co
-
 
 
 class Sticker:
@@ -1747,9 +1389,9 @@ class Sticker:
             tab_verts_co = []
             for i in range(len(pin.geometry)):
                 if not (pin.geometry_co[i][0] == 0.5):
-                    vi = UVVertex((second_vertex.co + self.rot @ pin.geometry_co[i]))
+                    vi = s.UVVertex((second_vertex.co + self.rot @ pin.geometry_co[i]))
                 else:
-                    vi = UVVertex((pin.geometry_co[i]))
+                    vi = s.UVVertex((pin.geometry_co[i]))
                 tab_verts.insert(len(tab_verts), vi)
                 tab_verts_co.insert(len(tab_verts), vi.co)
 
@@ -1772,9 +1414,9 @@ class Sticker:
             tab_verts_co = []
             for i in range(len(sawtooth.geometry)):
                 if not(sawtooth.geometry_co[i][0] == 0.5):
-                    vi = UVVertex((second_vertex.co + self.rot @ sawtooth.geometry_co[i]))
+                    vi = s.UVVertex((second_vertex.co + self.rot @ sawtooth.geometry_co[i]))
                 else:
-                    vi = UVVertex(( sawtooth.geometry_co[i]))
+                    vi = s.UVVertex(( sawtooth.geometry_co[i]))
                 tab_verts.insert(len(tab_verts), vi)
                 tab_verts_co.insert(len(tab_verts), vi.co)
 
@@ -1829,8 +1471,8 @@ class Sticker:
             len_a = min(len_a, (edge.length * sin_b) / (sin_a * cos_b + sin_b * cos_a))
             len_b = 0 if sin_b == 0 else min(sticker_width / sin_b, (edge.length - len_a * cos_a) / cos_b)
 
-            v3 = UVVertex(second_vertex.co + M.Matrix(((cos_b, -sin_b), (sin_b, cos_b))) @ edge * len_b / edge.length)
-            v4 = UVVertex(first_vertex.co + M.Matrix(((-cos_a, -sin_a), (sin_a, -cos_a))) @ edge * len_a / edge.length)
+            v3 = s.UVVertex(second_vertex.co + M.Matrix(((cos_b, -sin_b), (sin_b, cos_b))) @ edge * len_b / edge.length)
+            v4 = s.UVVertex(first_vertex.co + M.Matrix(((-cos_a, -sin_a), (sin_a, -cos_a))) @ edge * len_a / edge.length)
             if v3.co != v4.co:
                 self.vertices = [second_vertex, v3, v4, first_vertex]
             else:
@@ -1855,7 +1497,7 @@ class PourHoleSticker:
         first_vertex, second_vertex = (uvedge.va, uvedge.vb) if not uvedge.uvface.flipped else (uvedge.vb, uvedge.va)
         edge = first_vertex.co - second_vertex.co
         self.width = edge.length
-        self.pattern = PourHolePattern()
+        self.pattern = stickers.PourHolePattern()
         midsection_count = 1
         midsection_width = self.pattern.width * midsection_count
         offset_left = (self.width - midsection_width) / 2
@@ -1869,14 +1511,47 @@ class PourHoleSticker:
         for n in range(0, midsection_count):
             for i in range(len(tab)):
                 if not(tab[i].co.x == 0.5):
-                    vi = UVVertex((tab[i].co) + M.Vector((self.pattern.width * n + offset_left, 0)))
+                    vi = s.UVVertex((tab[i].co) + M.Vector((self.pattern.width * n + offset_left, 0)))
                 else:
-                    vi = UVVertex((tab[i].co))
+                    vi = s.UVVertex((tab[i].co))
 
                 tab_verts.insert(len(tab_verts), vi)
                 tab_verts_co.insert(len(tab_verts), vi.co)
 
         return tab_verts, tab_verts_co
+
+class SawtoothSticker:
+    __slots__ = ('bounds', 'center', 'rot', 'text', 'width', 'vertices', "pattern", "geometry", "geometry_co")
+
+    def __init__(self, uvedge, default_width, index, other: UVEdge, isreversed):
+        first_vertex, second_vertex = (uvedge.va, uvedge.vb) if not uvedge.uvface.flipped else (uvedge.vb, uvedge.va)
+        edge = first_vertex.co - second_vertex.co
+        self.width = edge.length
+        self.pattern = stickers.SawtoothPattern(isreversed)
+        midsection_count = floor(self.width / self.pattern.width)
+        midsection_width = self.pattern.width * midsection_count
+        offset_left = (self.width - midsection_width) / 2
+        offset_right = (self.width - midsection_width) / 2
+        self.geometry, self.geometry_co = self.construct(offset_left, midsection_count, self.pattern)
+        # print(self.width, self.pattern.width, midsection_count)
+
+    def construct(self, offset_left, midsection_count, pattern):
+        tab_verts = []
+        tab_verts_co = []
+        tab = self.pattern.getGeometry()
+        for n in range(0, midsection_count):
+            for i in range(len(tab)):
+                if not(tab[i].co.x == 0.5):
+                    vi = s.UVVertex((tab[i].co) + M.Vector((self.pattern.width * n + offset_left, 0)))
+                else:
+                    vi = s.UVVertex((tab[i].co))
+                tab_verts.insert(len(tab_verts), vi)
+                tab_verts_co.insert(len(tab_verts), vi.co)
+
+        # print(offset_left)
+        return tab_verts, tab_verts_co
+
+
 class PourHole:
     """Mark in the document: sticker tab"""
     __slots__ = ('bounds', 'center', 'rot', 'text', 'width', 'vertices')
@@ -1913,9 +1588,9 @@ class PourHole:
         tab_verts_co = []
         for i in range(len(sawtooth.geometry)):
             if not(sawtooth.geometry_co[i][0] == 0.5):
-                vi = UVVertex((first_vertex.co - self.rot @ sawtooth.geometry_co[i]))
+                vi = s.UVVertex((first_vertex.co - self.rot @ sawtooth.geometry_co[i]))
             else:
-                vi = UVVertex(( sawtooth.geometry_co[i]))
+                vi = s.UVVertex(( sawtooth.geometry_co[i]))
             tab_verts.insert(len(tab_verts), vi)
             tab_verts_co.insert(len(tab_verts), vi.co)
 
@@ -1927,6 +1602,38 @@ class PourHole:
         self.center = (uvedge.va.co + uvedge.vb.co) / 2
         self.bounds = tab_verts_co
         self.bounds.insert(len(tab_verts_co), self.center)
+
+class PinSticker:
+        __slots__ = ('bounds', 'center', 'rot', 'text', 'width', 'vertices', "pattern", "geometry", "geometry_co")
+
+        def __init__(self, uvedge, default_width, index, other: UVEdge, isreversed):
+            first_vertex, second_vertex = (uvedge.va, uvedge.vb) if not uvedge.uvface.flipped else (uvedge.vb, uvedge.va)
+            edge = first_vertex.co - second_vertex.co
+            self.width = edge.length
+            self.pattern = PinPattern(isreversed)
+            midsection_count = floor(self.width / self.pattern.width)
+            midsection_width = self.pattern.width * midsection_count
+            offset_left = (self.width - midsection_width) / 2
+            offset_right = (self.width - midsection_width) / 2
+            self.geometry, self.geometry_co = self.construct(offset_left, midsection_count, self.pattern)
+            # print(self.width, self.pattern.width, midsection_count)
+
+        def construct(self, offset_left, midsection_count, pattern):
+            tab_verts = []
+            tab_verts_co = []
+            tab = self.pattern.getGeometry()
+            for n in range(0, midsection_count):
+                for i in range(len(tab)):
+                    if not(tab[i].co.x == 0.5):
+                        vi = s.UVVertex((tab[i].co) + M.Vector((self.pattern.width * n + offset_left, 0)))
+                    else:
+                        vi = s.UVVertex((tab[i].co))
+
+                    tab_verts.insert(len(tab_verts), vi)
+                    tab_verts_co.insert(len(tab_verts), vi.co)
+
+            # print(offset_left)
+            return tab_verts, tab_verts_co
 
 
 class NumberAlone:
