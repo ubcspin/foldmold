@@ -113,6 +113,7 @@ class Stickers:
         return self.svg2uv(os_path.join(path_to_stickers, sp))
 
 
+
 class Tooth:
     __slots__ = ("geometry", "width")
     def __init__(self):
@@ -143,32 +144,6 @@ class Gap:
         self.geometry = load_geometry()
         self.width = getWidth()
 
-class SawtoothPattern:
-    __slots__ = ("tileset", "width")
-    def __init__(self, isreversed):
-        def getWidth(tileset):
-            width = 0
-            for tile in tileset:
-                width += tile.width
-            return width
-
-        if(isreversed):
-            self.tileset = [Tooth(), Gap()]
-        else:
-            self.tileset = [Gap(), Tooth()]
-        self.width = getWidth(self.tileset)
-
-
-    def getGeometry(self):
-        vertices = []
-        for tile in self.tileset:
-            for vi in tile.geometry:
-                vertices.insert(len(vertices), vi)
-
-        return vertices
-
-
-
 class Hole:
     __slots__ = ("geometry", "width")
     def __init__(self):
@@ -176,6 +151,21 @@ class Hole:
         def load_geometry():
             s = Stickers()
             return s.load_geometry("hole.svg")
+
+        def getWidth():
+            # get bounding box of geometry
+            return 0.003 # stub
+
+        self.geometry = load_geometry()
+        self.width = getWidth()
+
+class PourHoleTile:
+    __slots__ = ("geometry", "width")
+    def __init__(self):
+
+        def load_geometry():
+            s = Stickers()
+            return s.load_geometry("pourhole.svg")
 
         def getWidth():
             # get bounding box of geometry
@@ -215,6 +205,29 @@ class Pin:
         self.width = getWidth()
 
 
+class SawtoothPattern:
+    __slots__ = ("tileset", "width")
+    def __init__(self, isreversed):
+        def getWidth(tileset):
+            width = 0
+            for tile in tileset:
+                width += tile.width
+            return width
+
+        if(isreversed):
+            self.tileset = [Tooth(), Gap()]
+        else:
+            self.tileset = [Gap(), Tooth()]
+        self.width = getWidth(self.tileset)
+
+    def getGeometry(self):
+        vertices = []
+        for tile in self.tileset:
+            for vi in tile.geometry:
+                vertices.insert(len(vertices), vi)
+
+        return vertices
+
 class PinPattern:
     __slots__ = ("tileset", "width")
     def __init__(self, isreversed):
@@ -239,21 +252,6 @@ class PinPattern:
                 vertices.insert(len(vertices), vi)
 
         return vertices
-
-class PourHoleTile:
-    __slots__ = ("geometry", "width")
-    def __init__(self):
-
-        def load_geometry():
-            s = Stickers()
-            return s.load_geometry("pourhole.svg")
-
-        def getWidth():
-            # get bounding box of geometry
-            return 0.003 # stub
-
-        self.geometry = load_geometry()
-        self.width = getWidth()
 
 
 class PourHolePattern:
