@@ -718,15 +718,15 @@ class Slicer_Settings(bpy.types.PropertyGroup):
 classes = (OBJECT_PT_Laser_Slicer_Panel, OBJECT_OT_Laser_Slicer, Slicer_Settings)
 
 def register():
-    for cl in classes:
-        bpy.utils.register_class(cl)
+    # for cl in classes:
+    #     bpy.utils.register_class(cl)
 
     bpy.types.Scene.slicer_settings = bpy.props.PointerProperty(type=Slicer_Settings)
 
 def unregister():
     bpy.types.Scene.slicer_settings
     
-    for cl in classes:
-        bpy.utils.unregister_class(cl)
+    # for cl in classes:
+    #     bpy.utils.unregister_class(cl)
 
 
