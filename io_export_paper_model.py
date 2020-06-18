@@ -7,7 +7,7 @@
 # * Unfolding and baking
 # * Export (SVG or PDF)
 # * User interface
-# During the unfold process, the mesh is mirrored into a 2D structure: UVFace, UVEdge, s.UVVertex.
+# During the unfold process, the mesh is mirrored into a 2D structure: UVFace, UVEdge, stickers.UVVertex.
 
 # bl_info = {
 #     "name": "Export Paper Model",
@@ -73,10 +73,7 @@ global_paper_sizes = [
     ('US_LEGAL', "Legal", "North American paper size")
 ]
 
-pin_edges = []
-sawtooth_edges = []
-glue_edges = []
-current_edge = "auto"
+
 
 
 class UnfoldError(ValueError):
@@ -342,7 +339,7 @@ class Mesh:
         self.data = bmesh
         self.matrix = matrix.to_3x3()
         self.looptex = bmesh.loops.layers.uv.new("Unfolded")
-        self.edges = {bmedge: Edge(bmedge) for bmedge in bmesh.edges}
+        self.edges = {bmedge: stickers.Edge(bmedge) for bmedge in bmesh.edges}
         self.islands = list()
         self.pages = list()
         for edge in self.edges.values():
@@ -409,7 +406,7 @@ class Mesh:
     def generate_cuts(self, page_size, priority_effect):
         """Cut the mesh so that it can be unfolded to a flat net."""
         normal_matrix = self.matrix.inverted().transposed()
-        islands = {Island(self, face, self.matrix, normal_matrix) for face in self.data.faces}
+        islands = {stickers.Island(self, face, self.matrix, normal_matrix, s) for face in self.data.faces}
         uvfaces = {face: uvface for island in islands for face, uvface in island.faces.items()}
         uvedges = {loop: uvedge for island in islands for loop, uvedge in island.edges.items()}
         for loop, uvedge in uvedges.items():
@@ -567,8 +564,6 @@ class Mesh:
                 toppestface = face
                 toppestuvface = uvface
         self.add_hole(toppestuvface)
-
-
 
 
     def generate_numbers_alone(self, size):
@@ -763,174 +758,6 @@ class Mesh:
             uv *= -1
 
 
-class Edge:
-    """Wrapper for BPy Edge"""
-    __slots__ = ('data', 'va', 'vb', 'main_faces', 'uvedges',
-                 'vector', 'angle',
-                 'is_main_cut', 'force_cut', 'priority', 'freestyle', 'is_kerf', 'type')
-
-    def __init__(self, edge):
-        self.data = edge
-        self.va, self.vb = edge.verts
-        self.vector = self.vb.co - self.va.co
-        # if self.main_faces is set, then self.uvedges[:2] must correspond to self.main_faces, in their order
-        # this constraint is assured at the time of finishing mesh.generate_cuts
-        self.uvedges = list()
-
-        self.force_cut = edge.seam  # such edges will always be cut
-        self.main_faces = None  # two faces that may be connected in the island
-        # is_main_cut defines whether the two main faces are connected
-        # all the others will be assumed to be cut
-        self.is_main_cut = True
-        self.priority = None
-        self.angle = None
-        self.freestyle = False
-
-        faces = edge.link_faces
-
-        # print(self.data.index)
-        # print(pin_edges)
-        # if(self.data.index in pin_edges):
-        #     self.type = 'pin'
-        # elif(self.data.index in sawtooth_edges):
-        #     self.type = 'tooth'
-        # elif(self.data.index in glue_edges):
-        #     self.type = 'glue'
-        # else:
-        #     self.type = 'auto'
-        #
-        # for uv in self.uvedges:
-        #     uv.type = self.type
-
-        if(faces[0].smooth and faces[1].smooth):
-            self.is_kerf = True
-
-            for uv in self.uvedges:
-                uv.is_kerf = True
-        else:
-            self.is_kerf = False
-
-    def choose_main_faces(self):
-        """Choose two main faces that might get connected in an island"""
-        from itertools import combinations
-        loops = self.data.link_loops
-
-        def score(pair):
-            return abs(pair[0].face.normal.dot(pair[1].face.normal))
-
-        if len(loops) == 2:
-            self.main_faces = list(loops)
-        elif len(loops) > 2:
-            # find (with brute force) the pair of indices whose loops have the most similar normals
-            self.main_faces = max(combinations(loops, 2), key=score)
-        if self.main_faces and self.main_faces[1].vert == self.va:
-            self.main_faces = self.main_faces[::-1]
-
-    def calculate_angle(self):
-        """Calculate the angle between the main faces"""
-        loop_a, loop_b = self.main_faces
-        normal_a, normal_b = (l.face.normal for l in self.main_faces)
-        if not normal_a or not normal_b:
-            self.angle = -3  # just a very sharp angle
-        else:
-            s = normal_a.cross(normal_b).dot(self.vector.normalized())
-            s = max(min(s, 1.0), -1.0)  # deal with rounding errors
-            self.angle = asin(s)
-            if loop_a.link_loop_next.vert != loop_b.vert or loop_b.link_loop_next.vert != loop_a.vert:
-                self.angle = abs(self.angle)
-
-
-    def generate_priority(self, priority_effect, average_length):
-        """Calculate the priority value for cutting"""
-        angle = self.angle
-        if angle > 0:
-            self.priority = priority_effect['CONVEX'] * angle / pi
-        else:
-            self.priority = priority_effect['CONCAVE'] * angle / pi
-        self.priority += (self.vector.length / average_length) * priority_effect['LENGTH']
-        # print(self.priority)
-
-    def is_cut(self, face):
-        """Return False if this edge will the given face to another one in the resulting net
-        (useful for edges with more than two faces connected)"""
-        # Return whether there is a cut between the two main faces
-
-        if self.main_faces and face in {loop.face for loop in self.main_faces}:
-            return self.is_main_cut
-        # All other faces (third and more) are automatically treated as cut
-        else:
-            return True
-
-    def other_uvedge(self, this):
-        """Get an uvedge of this edge that is not the given one
-        causes an IndexError if case of less than two adjacent edges"""
-        return self.uvedges[1] if this is self.uvedges[0] else self.uvedges[0]
-
-
-class Island:
-    """Part of the net to be exported"""
-    __slots__ = ('mesh', 'faces', 'edges', 'vertices', 'fake_vertices', 'boundary', 'markers',
-                 'pos', 'bounding_box',
-                 'image_path', 'embedded_image',
-                 'number', 'label', 'abbreviation', 'title',
-                 'has_safe_geometry', 'is_inside_out',
-                 'sticker_numbering')
-
-    def __init__(self, mesh, face, matrix, normal_matrix):
-        """Create an Island from a single Face"""
-        self.mesh = mesh
-        self.faces = dict()  # face -> uvface
-        self.edges = dict()  # loop -> uvedge
-        self.vertices = dict()  # loop -> uvvertex
-        self.fake_vertices = list()
-        self.markers = list()
-        self.label = None
-        self.abbreviation = None
-        self.title = None
-        self.pos = M.Vector((0, 0))
-        self.image_path = None
-        self.embedded_image = None
-        self.is_inside_out = False  # swaps concave <-> convex edges
-        self.has_safe_geometry = True
-        self.sticker_numbering = 0
-
-        uvface = UVFace(face, self, matrix, normal_matrix)
-        self.vertices.update(uvface.vertices)
-        self.edges.update(uvface.edges)
-        self.faces[face] = uvface
-        # UVEdges on the boundary
-        self.boundary = list(self.edges.values())
-
-    def add_marker(self, marker):
-        self.fake_vertices.extend(marker.bounds)
-        self.markers.append(marker)
-
-    def generate_label(self, label=None, abbreviation=None):
-        """Assign a name to this island automatically"""
-        abbr = abbreviation or self.abbreviation or str(self.number)
-        # TODO: dots should be added in the last instant when outputting any text
-        if u.is_upsidedown_wrong(abbr):
-            abbr += "."
-        self.label = label or self.label or "Island {}".format(self.number)
-        self.abbreviation = abbr
-
-    def save_uv(self, tex, cage_size):
-        """Save UV Coordinates of all UVFaces to a given UV texture
-        tex: UV Texture layer to use (BMLayerItem)
-        page_size: size of the page in pixels (vector)"""
-        scale_x, scale_y = 1 / cage_size.x, 1 / cage_size.y
-        for loop, uvvertex in self.vertices.items():
-            if not(uvvertex.co.x == 0.5):
-                uv = uvvertex.co + self.pos
-            loop[tex].uv = uv.x * scale_x, uv.y * scale_y
-
-    def save_uv_separate(self, tex):
-        """Save UV Coordinates of all UVFaces to a given UV texture, spanning from 0 to 1
-        tex: UV Texture layer to use (BMLayerItem)
-        page_size: size of the page in pixels (vector)"""
-        scale_x, scale_y = 1 / self.bounding_box.x, 1 / self.bounding_box.y
-        for loop, uvvertex in self.vertices.items():
-            loop[tex].uv = uvvertex.co.x * scale_x, uvvertex.co.y * scale_y
 
 
 def join(uvedge_a, uvedge_b, size_limit=None, epsilon=1e-6):
@@ -1071,7 +898,7 @@ def join(uvedge_a, uvedge_b, size_limit=None, epsilon=1e-6):
         rot = u.fitting_matrix(flip @ (first_b.co - second_b.co), uvedge_a.vb.co - uvedge_a.va.co) @ flip
     trans = uvedge_a.vb.co - rot @ first_b.co
     # preview of island_b's vertices after the join operation
-    phantoms = {uvvertex: s.UVVertex(rot @ uvvertex.co + trans) for uvvertex in island_b.vertices.values()}
+    phantoms = {uvvertex: stickers.UVVertex(rot @ uvvertex.co + trans) for uvvertex in island_b.vertices.values()}
 
     # check the size of the resulting island
     if size_limit:
@@ -1130,7 +957,7 @@ def join(uvedge_a, uvedge_b, size_limit=None, epsilon=1e-6):
         raise UnfoldError("Export failed. Please report this error, including the model if you can.")
 
     boundary_other = [
-        PhantomUVEdge(phantoms[uvedge.va], phantoms[uvedge.vb], flipped ^ uvedge.uvface.flipped)
+        stickers.PhantomUVEdge(phantoms[uvedge.va], phantoms[uvedge.vb], flipped ^ uvedge.uvface.flipped)
         for uvedge in island_b.boundary if uvedge not in merged_uvedges]
     # TODO: if is_merged_mine, it might make sense to create a similar list from island_a.boundary as well
 
@@ -1236,82 +1063,11 @@ class Page:
 #         return self
 
 
-class UVEdge:
-    """Edge in 2D"""
-    # Every UVEdge is attached to only one UVFace
-    # UVEdges are doubled as needed because they both have to point clockwise around their faces
-    __slots__ = ('va', 'vb', 'uvface', 'loop',
-                 'min', 'max', 'bottom', 'top',
-                 'neighbor_left', 'neighbor_right', 'sticker', 'is_kerf', 'type', 'pourhole')
-
-    def __init__(self, vertex1: s.UVVertex, vertex2: s.UVVertex, uvface, loop, is_kerf):
-        self.va = vertex1
-        self.vb = vertex2
-        self.update()
-        self.uvface = uvface
-        self.sticker = None
-        self.loop = loop
-        self.is_kerf = is_kerf
-        self.type = 'auto'
-        self.pourhole = None
-
-        print(self.loop.edge.index)
-        print(pin_edges)
-        if(self.loop.edge.index in pin_edges):
-            self.type = 'pin'
-        elif(self.loop.edge.index in sawtooth_edges):
-            self.type = 'tooth'
-        elif(self.loop.edge.index in glue_edges):
-            self.type = 'glue'
-        else:
-            self.type = 'auto'
 
 
-    def update(self):
-        """Update data if UVVertices have moved"""
-        self.min, self.max = (self.va, self.vb) if (self.va.tup < self.vb.tup) else (self.vb, self.va)
-        y1, y2 = self.va.co.y, self.vb.co.y
-        self.bottom, self.top = (y1, y2) if y1 < y2 else (y2, y1)
-
-    def is_uvface_upwards(self):
-        return (self.va.tup < self.vb.tup) ^ self.uvface.flipped
-
-    def __repr__(self):
-        return "({0.va} - {0.vb})".format(self)
 
 
-class PhantomUVEdge:
-    """Temporary 2D Segment for calculations"""
-    __slots__ = ('va', 'vb', 'min', 'max', 'bottom', 'top')
 
-    def __init__(self, vertex1: s.UVVertex, vertex2: s.UVVertex, flip):
-        self.va, self.vb = (vertex2, vertex1) if flip else (vertex1, vertex2)
-        self.min, self.max = (self.va, self.vb) if (self.va.tup < self.vb.tup) else (self.vb, self.va)
-        y1, y2 = self.va.co.y, self.vb.co.y
-        self.bottom, self.top = (y1, y2) if y1 < y2 else (y2, y1)
-
-    def is_uvface_upwards(self):
-        return self.va.tup < self.vb.tup
-
-    def __repr__(self):
-        return "[{0.va} - {0.vb}]".format(self)
-
-
-class UVFace:
-    """Face in 2D"""
-    __slots__ = ('vertices', 'edges', 'face', 'island', 'flipped', 'uvedges')
-
-    def __init__(self, face: bmesh.types.BMFace, island: Island, matrix=1, normal_matrix=1):
-        self.face = face
-        self.island = island
-        self.flipped = False  # a flipped UVFace has edges clockwise
-
-        flatten = u.z_up_matrix(normal_matrix @ face.normal) @ matrix
-        self.vertices = {loop: s.UVVertex(flatten @ loop.vert.co) for loop in face.loops}
-        self.edges = {loop: UVEdge(self.vertices[loop], self.vertices[loop.link_loop_next], self, loop, self.face.smooth) for loop in
-                      face.loops}
-        self.uvedges = [UVEdge(self.vertices[loop], self.vertices[loop.link_loop_next], self, loop, self.face.smooth) for loop in
-                      face.loops]
 
 
 class Arrow:
@@ -1332,22 +1088,8 @@ class Arrow:
 
 
 # /////////////////////////////////////////////////////////////////////////////////////////////////////////////
-path_to_stickers_mac = "/Applications/Blender.app/Contents/Resources/2.82/scripts/addons/foldmold/Stickers/"
-path_to_stickers_win = "C:\Program Files\\Blender Foundation\\Blender 2.81\\2.81\\scripts\\addons\\Stickers\\"
-
-if sys.platform.startswith('win32'):
-    path_to_stickers = path_to_stickers_win
-elif sys.platform.startswith('darwin'):
-    path_to_stickers = path_to_stickers_mac
-else:
-    raise ValueError('Please add path for system other than windows or osx')
-
-
-
-
 
     # print("this line goes from point [%d, %d] to point [%d, %d]" % (v["x1"], v["y1"], v["x2"], v["y2"]))
-
 
 # //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -1356,7 +1098,7 @@ class Sticker:
     """Mark in the document: sticker tab"""
     __slots__ = ('bounds', 'center', 'rot', 'text', 'width', 'vertices')
 
-    def __init__(self, uvedge, default_width, index, other: UVEdge, isreversed=False):
+    def __init__(self, uvedge, default_width, index, other: stickers.UVEdge, isreversed=False):
         """Sticker is directly attached to the given UVEdge"""
         first_vertex, second_vertex = (uvedge.va, uvedge.vb) if not uvedge.uvface.flipped else (uvedge.vb, uvedge.va)
         edge = first_vertex.co - second_vertex.co
@@ -1389,9 +1131,9 @@ class Sticker:
             tab_verts_co = []
             for i in range(len(pin.geometry)):
                 if not (pin.geometry_co[i][0] == 0.5):
-                    vi = s.UVVertex((second_vertex.co + self.rot @ pin.geometry_co[i]))
+                    vi = stickers.UVVertex((second_vertex.co + self.rot @ pin.geometry_co[i]))
                 else:
-                    vi = s.UVVertex((pin.geometry_co[i]))
+                    vi = stickers.UVVertex((pin.geometry_co[i]))
                 tab_verts.insert(len(tab_verts), vi)
                 tab_verts_co.insert(len(tab_verts), vi.co)
 
@@ -1414,9 +1156,9 @@ class Sticker:
             tab_verts_co = []
             for i in range(len(sawtooth.geometry)):
                 if not(sawtooth.geometry_co[i][0] == 0.5):
-                    vi = s.UVVertex((second_vertex.co + self.rot @ sawtooth.geometry_co[i]))
+                    vi = stickers.UVVertex((second_vertex.co + self.rot @ sawtooth.geometry_co[i]))
                 else:
-                    vi = s.UVVertex(( sawtooth.geometry_co[i]))
+                    vi = stickers.UVVertex(( sawtooth.geometry_co[i]))
                 tab_verts.insert(len(tab_verts), vi)
                 tab_verts_co.insert(len(tab_verts), vi.co)
 
@@ -1471,8 +1213,8 @@ class Sticker:
             len_a = min(len_a, (edge.length * sin_b) / (sin_a * cos_b + sin_b * cos_a))
             len_b = 0 if sin_b == 0 else min(sticker_width / sin_b, (edge.length - len_a * cos_a) / cos_b)
 
-            v3 = s.UVVertex(second_vertex.co + M.Matrix(((cos_b, -sin_b), (sin_b, cos_b))) @ edge * len_b / edge.length)
-            v4 = s.UVVertex(first_vertex.co + M.Matrix(((-cos_a, -sin_a), (sin_a, -cos_a))) @ edge * len_a / edge.length)
+            v3 = stickers.UVVertex(second_vertex.co + M.Matrix(((cos_b, -sin_b), (sin_b, cos_b))) @ edge * len_b / edge.length)
+            v4 = stickers.UVVertex(first_vertex.co + M.Matrix(((-cos_a, -sin_a), (sin_a, -cos_a))) @ edge * len_a / edge.length)
             if v3.co != v4.co:
                 self.vertices = [second_vertex, v3, v4, first_vertex]
             else:
@@ -1511,9 +1253,9 @@ class PourHoleSticker:
         for n in range(0, midsection_count):
             for i in range(len(tab)):
                 if not(tab[i].co.x == 0.5):
-                    vi = s.UVVertex((tab[i].co) + M.Vector((self.pattern.width * n + offset_left, 0)))
+                    vi = stickers.UVVertex((tab[i].co) + M.Vector((self.pattern.width * n + offset_left, 0)))
                 else:
-                    vi = s.UVVertex((tab[i].co))
+                    vi = stickers.UVVertex((tab[i].co))
 
                 tab_verts.insert(len(tab_verts), vi)
                 tab_verts_co.insert(len(tab_verts), vi.co)
@@ -1523,7 +1265,7 @@ class PourHoleSticker:
 class SawtoothSticker:
     __slots__ = ('bounds', 'center', 'rot', 'text', 'width', 'vertices', "pattern", "geometry", "geometry_co")
 
-    def __init__(self, uvedge, default_width, index, other: UVEdge, isreversed):
+    def __init__(self, uvedge, default_width, index, other: stickers.UVEdge, isreversed):
         first_vertex, second_vertex = (uvedge.va, uvedge.vb) if not uvedge.uvface.flipped else (uvedge.vb, uvedge.va)
         edge = first_vertex.co - second_vertex.co
         self.width = edge.length
@@ -1542,9 +1284,9 @@ class SawtoothSticker:
         for n in range(0, midsection_count):
             for i in range(len(tab)):
                 if not(tab[i].co.x == 0.5):
-                    vi = s.UVVertex((tab[i].co) + M.Vector((self.pattern.width * n + offset_left, 0)))
+                    vi = stickers.UVVertex((tab[i].co) + M.Vector((self.pattern.width * n + offset_left, 0)))
                 else:
-                    vi = s.UVVertex((tab[i].co))
+                    vi = stickers.UVVertex((tab[i].co))
                 tab_verts.insert(len(tab_verts), vi)
                 tab_verts_co.insert(len(tab_verts), vi.co)
 
@@ -1588,9 +1330,9 @@ class PourHole:
         tab_verts_co = []
         for i in range(len(sawtooth.geometry)):
             if not(sawtooth.geometry_co[i][0] == 0.5):
-                vi = s.UVVertex((first_vertex.co - self.rot @ sawtooth.geometry_co[i]))
+                vi = stickers.UVVertex((first_vertex.co - self.rot @ sawtooth.geometry_co[i]))
             else:
-                vi = s.UVVertex(( sawtooth.geometry_co[i]))
+                vi = stickers.UVVertex(( sawtooth.geometry_co[i]))
             tab_verts.insert(len(tab_verts), vi)
             tab_verts_co.insert(len(tab_verts), vi.co)
 
@@ -1606,7 +1348,7 @@ class PourHole:
 class PinSticker:
         __slots__ = ('bounds', 'center', 'rot', 'text', 'width', 'vertices', "pattern", "geometry", "geometry_co")
 
-        def __init__(self, uvedge, default_width, index, other: UVEdge, isreversed):
+        def __init__(self, uvedge, default_width, index, other: stickers.UVEdge, isreversed):
             first_vertex, second_vertex = (uvedge.va, uvedge.vb) if not uvedge.uvface.flipped else (uvedge.vb, uvedge.va)
             edge = first_vertex.co - second_vertex.co
             self.width = edge.length
@@ -1625,9 +1367,9 @@ class PinSticker:
             for n in range(0, midsection_count):
                 for i in range(len(tab)):
                     if not(tab[i].co.x == 0.5):
-                        vi = s.UVVertex((tab[i].co) + M.Vector((self.pattern.width * n + offset_left, 0)))
+                        vi = stickers.UVVertex((tab[i].co) + M.Vector((self.pattern.width * n + offset_left, 0)))
                     else:
-                        vi = s.UVVertex((tab[i].co))
+                        vi = stickers.UVVertex((tab[i].co))
 
                     tab_verts.insert(len(tab_verts), vi)
                     tab_verts_co.insert(len(tab_verts), vi.co)
@@ -2376,11 +2118,11 @@ class ApplyEdgeType(bpy.types.Operator):
         print(len(selectedEdges))
         print(current_edge)
         if(current_edge == "pin"):
-            pin_edges.extend(selectedEdges)
+            s.pin_edges.extend(selectedEdges)
         elif(current_edge == "tooth"):
-            sawtooth_edges.extend(selectedEdges)
+            s.sawtooth_edges.extend(selectedEdges)
         elif(current_edge == "glue"):
-            glue_edges.extend(selectedEdges)
+            s.glue_edges.extend(selectedEdges)
         print(pin_edges)
         print(sawtooth_edges)
         print(glue_edges)
@@ -3050,11 +2792,6 @@ def register():
     )
     bpy.types.TOPBAR_MT_file_export.append(menu_func_export)
     bpy.types.VIEW3D_MT_edit_mesh.prepend(menu_func_unfold)
-
-    u.hello("World2")
-    u.is_upsidedown_wrong("wow")
-    # u.first_letters("tttt") // not sure if we can test this??
-
 
 
 def unregister():

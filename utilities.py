@@ -39,24 +39,6 @@ class Utilities:
             (v1.x * v2.y - v1.y * v2.x, v1.x * v2.x + v1.y * v2.y)))
 
 
-    def z_up_matrix(self, n):
-        """Get a rotation matrix that aligns given vector upwards."""
-        b = n.xy.length
-        s = n.length
-        if b > 0:
-            return M.Matrix((
-                (n.x * n.z / (b * s), n.y * n.z / (b * s), -b / s),
-                (-n.y / b, n.x / b, 0),
-                (0, 0, 0)
-            ))
-        else:
-            # no need for rotation
-            return M.Matrix((
-                (1, 0, 0),
-                (0, (-1 if n.z < 0 else 1), 0),
-                (0, 0, 0)
-            ))
-
     def cage_fit(self, points, aspect):
         """Find rotation for a minimum bounding box with a given aspect ratio
         returns a tuple: rotation angle, box height"""
@@ -112,10 +94,6 @@ class Utilities:
         image.pixels = [1, 1, 1, alpha] * (width * height)
         image.file_format = 'PNG'
         return image
-
-    
-    
-
 
 
     def hello(self, hi):
