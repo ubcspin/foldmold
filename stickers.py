@@ -8,16 +8,17 @@ import bmesh
 import bpy
 import bl_operators
 from math import pi, ceil, asin, atan2, floor
+from svgpathtools import parse_path, Line, Path, QuadraticBezier, CubicBezier, Arc
 from . import utilities
 
 class Stickers:
     def __init__(self):
-        self.vertices = []
         self.pin_edges = []
         self.sawtooth_edges = []
         self.glue_edges = []
         self.current_edge = "auto"
 
+    """ returns svg root of svg at path"""
     def load_svg(self, path):
         logger = logging.getLogger(__name__)
         parser = etree.XMLParser(remove_comments=True, recover=True)
@@ -29,15 +30,18 @@ class Stickers:
         else:
             return svg_root
 
+    """ returns an array of UVVertices converted from the svg file at path"""
     def svg2uv(self, path):
         ns = {"u": "http://www.w3.org/2000/svg"}
-        self.vertices.clear()
+        vertices = []
         svg_root = self.load_svg(path)
         if svg_root is None:
             print("SVG import blowed up, no root!")
             return
 
         polylines = svg_root.findall("u:polyline", ns)
+        lines = svg_root.findall("u:line", ns)
+        rectangles = svg_root.findall("u:rect", ns)
         paths = svg_root.findall("u:path", ns)
 
         # Make Polyline Vectors
@@ -49,29 +53,42 @@ class Stickers:
             polyline_vectors += self.vectorize_polylines(points)
             # polyline_vectors += vectorize_polylines("600,600") #delimiter
         for v in polyline_vectors:
-            self.makeUVVertices(v)
+            vertices.append(self.makeUVVertices(v))
+
+        # Make Lines
+        for l in lines:
+            vertices += self.vectorize_lines(l)
+
+        # Make Rectangles
+        for r in rectangles:
+            vertices += self.vectorize_rects(r)
 
         # Make Path vectors
         path_vectors = []
         for p in paths:
             path = p.attrib['d']
             path_vectors += self.vectorize_paths(path)
-        return self.vertices.copy()
+        
+        for v in path_vectors:
+            vertices.append(self.pathToUVVertices(v))
+
+        return vertices
 
 
 
     def vectorize_paths(self, path):
-        # "M0,0H250V395.28a104.71,104.71,0,0,0,11.06,46.83h0A104.71,104.71,0,0,0,354.72,500h40.56a104.71,104.71,0,0,0,93.66-57.89h0A104.71,104.71,0,0,0,500,395.28V0"
-        r = re.compile('[MmHhAaVv][\d,\.-]*')  # split by commands
-        p = re.sub(r'-', r',-', path)  # make sure to catch negatives
-        commands = r.findall(p)
-        for c in commands:
-            command = c[0]
-            parameters = [float(i) for i in c[1:].split(",")]
-            print(command, parameters)
-
-        print(commands)
-        return []
+        paths = parse_path(path)
+        uv_vertices = []
+        NUM_SAMPLES = 10
+        for subpath in paths:
+            uv_vertices.append(subpath.start)
+            if isinstance(subpath, Line):
+                pass
+            elif isinstance(subpath, CubicBezier) or isinstance(subpath, QuadraticBezier) or isinstance(subpath, Arc):
+                for i in range(NUM_SAMPLES):
+                    uv_vertices.append(subpath.point(i/(NUM_SAMPLES-1)))
+            uv_vertices.append(subpath.end)
+        return uv_vertices
 
 
     def vectorize_polylines(self, points):
@@ -90,6 +107,18 @@ class Stickers:
             lines.append(o)
         return lines
 
+    def vectorize_lines(line):
+        return [UVVertex(M.Vector((float(line.attrib['x1']), float(line.attrib['y1']))) * 0.00001), \
+        UVVertex(M.Vector((float(line.attrib['x2']), float(line.attrib['y2']))) * 0.00001)]
+    
+    def vectorize_rects(rect):
+        x1, y1 = float(rect.attrib['x']), float(rect.attrib['y'])
+        width, height = float(rect.attrib['width']), float(rect.attrib['height'])
+        return [UVVertex(M.Vector((x1, y1)) * 0.00001), \
+                UVVertex(M.Vector((x1 + width, y1)) * 0.00001), \
+                UVVertex(M.Vector((x1 + width, y1 + height)) * 0.00001), \
+                UVVertex(M.Vector((x1, y1 + height)) * 0.00001), \
+                UVVertex(M.Vector((x1, y1)) * 0.00001)]
 
     def makeUVVertices(self, v):
         if not (v["x1"] == 0.5):
@@ -97,7 +126,10 @@ class Stickers:
         else:
             v1 = UVVertex(M.Vector((v["x1"], v["y1"]))  )  # scaling down to avoid overflow
 
-        self.vertices.append(v1)
+        return v1
+
+    def pathToUVVertices(v):
+        return UVVertex(M.Vector((v.real, v.imag)) * 0.00001)
 
     def load_geometry(self, sp):
         path_to_stickers_mac = "/Applications/Blender.app/Contents/Resources/2.82/scripts/addons/foldmold/Stickers/"
