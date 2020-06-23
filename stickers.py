@@ -4,7 +4,7 @@ import logging
 import mathutils as M
 import os.path as os_path
 import sys
-import bmesh
+# import bmesh
 import bpy
 import bl_operators
 from math import pi, ceil, asin, atan2, floor
@@ -460,6 +460,7 @@ class Edge:
         return self.uvedges[1] if this is self.uvedges[0] else self.uvedges[0]
 
 
+
 class Sticker:
     """Mark in the document: sticker tab"""
     __slots__ = ('bounds', 'center', 'rot', 'text', 'width', 'vertices')
@@ -467,92 +468,37 @@ class Sticker:
     def __init__(self, uvedge, default_width, index, other: UVEdge, isreversed=False):
         """Sticker is directly attached to the given UVEdge"""
         first_vertex, second_vertex = (uvedge.va, uvedge.vb) if not uvedge.uvface.flipped else (uvedge.vb, uvedge.va)
+        other_first, other_second = (other.va, other.vb) if not other.uvface.flipped else (other.vb, other.va)
+
         edge = first_vertex.co - second_vertex.co
+        other_edge = other_second.co - other_first.co
+
         sticker_width = min(default_width, edge.length / 2)
+        direction = edge.normalized() # this is a unit vector
 
-        cos_a = cos_b = 0.5
-        sin_a = sin_b = 0.75 ** 0.5
-        # len_a is length of the side adjacent to vertex a, len_b likewise
-        len_a = len_b = sticker_width / sin_a
-
-        sin_a = abs(1 - cos_a ** 2) ** 0.5
-        len_b = min(len_a, (edge.length * sin_a) / (sin_a * cos_b + sin_b * cos_a))
-        len_a = 0 if sin_a == 0 else min(sticker_width / sin_a, (edge.length - len_b * cos_b) / cos_a)
-
-        sin_b = abs(1 - cos_b ** 2) ** 0.5
-        len_a = min(len_a, (edge.length * sin_b) / (sin_a * cos_b + sin_b * cos_a))
-        len_b = 0 if sin_b == 0 else min(sticker_width / sin_b, (edge.length - len_a * cos_a) / cos_b)
-
-        tangent = edge.normalized() #this is a Vector
-        cos = tangent.x
-        sin = tangent.y
-
-        self.rot = M.Matrix(((cos, -sin), (sin, cos)))
-
+        self.rot = M.Matrix(((direction.x, -direction.y), (direction.y, direction.x)))
         self.width = sticker_width
+        self.text = ""
+        self.vertices = []
+        self.bounds = []
+        self.center = (uvedge.va.co + uvedge.vb.co) / 2 # changes if not tile pattern
+        self.sticker = generate_sticker(uvedge, default_width, index, other, isreversed)
 
-        if(uvedge.type == 'pin'):
-            pin = PinSticker(uvedge, default_width, index, other, isreversed)
-            tab_verts = []
-            tab_verts_co = []
-            for i in range(len(pin.geometry)):
-                if not (pin.geometry_co[i][0] == 0.5):
-                    vi = UVVertex((second_vertex.co + self.rot @ pin.geometry_co[i]))
-                else:
-                    vi = UVVertex((pin.geometry_co[i]))
-                tab_verts.insert(len(tab_verts), vi)
-                tab_verts_co.insert(len(tab_verts), vi.co)
+        if (uvedge.type != 'pin' or uvedge.type != 'tooth'):
+            k = 0.5
 
-            self.vertices = []
-            self.vertices = tab_verts
-            self.vertices.insert(len(tab_verts), first_vertex)
-            self.vertices.insert(0, second_vertex)
-
-            # if index and uvedge.uvface.island is not other.uvface.island:
-            #     self.text = "{}:{}".format(other.uvface.island.abbreviation, index)
-            # else:
-            self.text = ""
-
-            self.center = (uvedge.va.co + uvedge.vb.co) / 2
-            self.bounds = tab_verts_co
-            self.bounds.insert(len(tab_verts_co), self.center)
-        elif(uvedge.type == 'tooth'):
-            sawtooth = SawtoothSticker(uvedge, default_width, index, other, isreversed)
-            tab_verts = []
-            tab_verts_co = []
-            for i in range(len(sawtooth.geometry)):
-                if not(sawtooth.geometry_co[i][0] == 0.5):
-                    vi = UVVertex((second_vertex.co + self.rot @ sawtooth.geometry_co[i]))
-                else:
-                    vi = UVVertex(( sawtooth.geometry_co[i]))
-                tab_verts.insert(len(tab_verts), vi)
-                tab_verts_co.insert(len(tab_verts), vi.co)
-
-            #OPTIONAL ADJUSTMENT: +  self.rot @ M.Vector((0, self.width * 0.2))
-            self.vertices = []
-            self.vertices = tab_verts
-            self.vertices.insert(len(tab_verts), first_vertex)
-            self.vertices.insert(0, second_vertex)
-
-
-            # if index and uvedge.uvface.island is not other.uvface.island:
-            #     self.text = "{}:{}".format(other.uvface.island.abbreviation, index)
-            # else:
-            self.text = ""
-
-            self.center = (uvedge.va.co + uvedge.vb.co) / 2
-            self.bounds = tab_verts_co
-            self.bounds.insert(len(tab_verts_co), self.center)
-        else:
-
-            other_first, other_second = (other.va, other.vb) if not other.uvface.flipped else (other.vb, other.va)
-            other_edge = other_second.co - other_first.co
+            sin_a = sin_b = abs(1 - k ** 2) ** 0.5
+            
+            # len_a is length of the side adjacent to vertex a, len_b likewise
+            len_c = min(sticker_width / 0.75 ** 0.5, (edge.length * sin_a) / (sin_a * k + (0.75 ** 0.5) * k))
+            len_a = min(sticker_width / sin_a, (edge.length - len_c * k) / k, (edge.length * sin_b) / (sin_a * k + sin_b * k))
+            len_b = min(sticker_width / sin_b, (edge.length - len_a * k) / k)
 
             # fix overlaps with the most often neighbour - its sticking target
-            if first_vertex == other_second:
-                cos_a = max(cos_a, edge.dot(other_edge) / (edge.length_squared))  # angles between pi/3 and 0
-            elif second_vertex == other_first:
-                cos_b = max(cos_b, edge.dot(other_edge) / (edge.length_squared))  # angles between pi/3 and 0
+            
+            k = max(k, edge.dot(other_edge) / (edge.length_squared))  # angles between pi/3 and 0
+            
+            cos_a = cos_b = 0.5 # stub
 
             # Fix tabs for sticking targets with small angles
             try:
@@ -561,9 +507,9 @@ class Sticker:
                 other_edge_neighbor_a = other_face_neighbor_left.vb.co - other.vb.co
                 other_edge_neighbor_b = other_face_neighbor_right.va.co - other.va.co
                 # Adjacent angles in the face
-                cos_a = max(cos_a,
+                cos_a = max(k,
                             -other_edge.dot(other_edge_neighbor_a) / (other_edge.length * other_edge_neighbor_a.length))
-                cos_b = max(cos_b,
+                cos_b = max(k,
                             other_edge.dot(other_edge_neighbor_b) / (other_edge.length * other_edge_neighbor_b.length))
             except AttributeError:  # neighbor data may be missing for edges with 3+ faces
                 pass
@@ -571,14 +517,6 @@ class Sticker:
                 pass
 
             # Calculate the lengths of the glue tab edges using the possibly smaller angles
-            sin_a = abs(1 - cos_a ** 2) ** 0.5
-            len_b = min(len_a, (edge.length * sin_a) / (sin_a * cos_b + sin_b * cos_a))
-            len_a = 0 if sin_a == 0 else min(sticker_width / sin_a, (edge.length - len_b * cos_b) / cos_a)
-
-            sin_b = abs(1 - cos_b ** 2) ** 0.5
-            len_a = min(len_a, (edge.length * sin_b) / (sin_a * cos_b + sin_b * cos_a))
-            len_b = 0 if sin_b == 0 else min(sticker_width / sin_b, (edge.length - len_a * cos_a) / cos_b)
-
             v3 = UVVertex(second_vertex.co + M.Matrix(((cos_b, -sin_b), (sin_b, cos_b))) @ edge * len_b / edge.length)
             v4 = UVVertex(first_vertex.co + M.Matrix(((-cos_a, -sin_a), (sin_a, -cos_a))) @ edge * len_a / edge.length)
             if v3.co != v4.co:
@@ -589,77 +527,77 @@ class Sticker:
             sin, cos = edge.y / edge.length, edge.x / edge.length
             self.rot = M.Matrix(((cos, -sin), (sin, cos)))
             self.width = sticker_width * 0.9
-            # if index and uvedge.uvface.island is not other.uvface.island:
-            #     self.text = "{}:{}".format(other.uvface.island.abbreviation, index)
-            # else:
-            #     self.text = index
-            self.text = ""
             self.center = (uvedge.va.co + uvedge.vb.co) / 2 + self.rot @ M.Vector((0, self.width * 0.2))
             self.bounds = [v3.co, v4.co, self.center] if v3.co != v4.co else [v3.co, self.center]
 
+        else: 
+            for i in range(len(self.sticker.geometry)):
+                if not (self.sticker.geometry_co[i][0] == 0.5):
+                    vi = UVVertex((second_vertex.co + self.rot @ self.sticker.geometry_co[i]))
+                else:
+                    vi = UVVertex((self.sticker.geometry_co[i]))
+                self.vertices.insert(len(self.vertices), vi)
+                self.bounds.insert(len(self.vertices), vi.co)
 
-class PourHoleSticker:
-    __slots__ = ('bounds', 'center', 'rot', 'text', 'width', 'vertices', "pattern", "geometry", "geometry_co")
+            self.vertices.insert(len(self.vertices), first_vertex)
+            self.vertices.insert(0, second_vertex)
+            self.bounds.insert(len(self.bounds), self.center)
 
-    def __init__(self, uvedge):
+
+
+    # Returns: AbstractSticker object
+    def generate_sticker(self, uvedge, default_width, index, other, isreversed):
+        if (uvedge.type == 'pin'):
+            return PinSticker(uvedge, default_width, index, other, isreversed)
+        if (uvedge.type == 'tooth'):
+            return SawtoothSticker(uvedge, default_width, index, other, isreversed)
+        return None
+
+class AbstractStickerConstructor:
+    __slots__ = ('bounds', 'center', 'rot', 'text', 'width', 'vertices', "pattern", "geometry", "geometry_co", "offset_left", "offset_right")
+    def __init__(self, uvedge, pattern):
         first_vertex, second_vertex = (uvedge.va, uvedge.vb) if not uvedge.uvface.flipped else (uvedge.vb, uvedge.va)
         edge = first_vertex.co - second_vertex.co
         self.width = edge.length
-        self.pattern = PourHolePattern()
+        self.offset_left = (self.width - midsection_width) / 2
+        self.offset_right = (self.width - midsection_width) / 2
+        self.pattern = pattern
+        self.geometry, self.geometry_co = self.construct(self.offset_left, midsection_count, self.pattern)
+
+    def construct(self, offset_left, midsection_count, pattern):
+        tab_verts = []
+        tab_verts_co = []
+        tab = self.pattern.getGeometry()
+        for n in range(0, midsection_count):
+            for i in range(len(tab)):
+                if not(tab[i].co.x == 0.5):
+                    vi = UVVertex((tab[i].co) + M.Vector((self.pattern.width * n + offset_left, 0)))
+                else:
+                    vi = UVVertex((tab[i].co))
+
+                tab_verts.insert(len(tab_verts), vi)
+                tab_verts_co.insert(len(tab_verts), vi.co)
+
+        return tab_verts, tab_verts_co
+
+class PourHoleSticker(AbstractStickerConstructor):
+    def __init__(self, uvedge):
         midsection_count = 1
         midsection_width = self.pattern.width * midsection_count
-        offset_left = (self.width - midsection_width) / 2
-        offset_right = (self.width - midsection_width) / 2
-        self.geometry, self.geometry_co = self.construct(offset_left, midsection_count, self.pattern)
+        AbstractStickerConstructor.__init__(self, uvedge, PourHolePattern(True))
 
-    def construct(self, offset_left, midsection_count, pattern):
-        tab_verts = []
-        tab_verts_co = []
-        tab = self.pattern.getGeometry()
-        for n in range(0, midsection_count):
-            for i in range(len(tab)):
-                if not(tab[i].co.x == 0.5):
-                    vi = UVVertex((tab[i].co) + M.Vector((self.pattern.width * n + offset_left, 0)))
-                else:
-                    vi = UVVertex((tab[i].co))
-
-                tab_verts.insert(len(tab_verts), vi)
-                tab_verts_co.insert(len(tab_verts), vi.co)
-
-        return tab_verts, tab_verts_co
-
-class SawtoothSticker:
-    __slots__ = ('bounds', 'center', 'rot', 'text', 'width', 'vertices', "pattern", "geometry", "geometry_co")
-
+class SawtoothSticker(AbstractStickerConstructor):
     def __init__(self, uvedge, default_width, index, other: UVEdge, isreversed):
-        first_vertex, second_vertex = (uvedge.va, uvedge.vb) if not uvedge.uvface.flipped else (uvedge.vb, uvedge.va)
-        edge = first_vertex.co - second_vertex.co
-        self.width = edge.length
-        self.pattern = SawtoothPattern(isreversed)
         midsection_count = floor(self.width / self.pattern.width)
         midsection_width = self.pattern.width * midsection_count
-        offset_left = (self.width - midsection_width) / 2
-        offset_right = (self.width - midsection_width) / 2
-        self.geometry, self.geometry_co = self.construct(offset_left, midsection_count, self.pattern)
-        # print(self.width, self.pattern.width, midsection_count)
+        AbstractStickerConstructor.__init__(self, uvedge, SawtoothPattern(isreversed))
 
-    def construct(self, offset_left, midsection_count, pattern):
-        tab_verts = []
-        tab_verts_co = []
-        tab = self.pattern.getGeometry()
-        for n in range(0, midsection_count):
-            for i in range(len(tab)):
-                if not(tab[i].co.x == 0.5):
-                    vi = UVVertex((tab[i].co) + M.Vector((self.pattern.width * n + offset_left, 0)))
-                else:
-                    vi = UVVertex((tab[i].co))
-                tab_verts.insert(len(tab_verts), vi)
-                tab_verts_co.insert(len(tab_verts), vi.co)
-
-        # print(offset_left)
-        return tab_verts, tab_verts_co
-
-
+class PinSticker:
+    def __init__(self, uvedge, default_width, index, other: UVEdge, isreversed):
+        midsection_count = floor(self.width / self.pattern.width)
+        midsection_width = self.pattern.width * midsection_count
+        AbstractStickerConstructor.__init__(self, uvedge, PinPattern(isreversed))
+        
 class PourHole:
     """Mark in the document: sticker tab"""
     __slots__ = ('bounds', 'center', 'rot', 'text', 'width', 'vertices')
@@ -711,37 +649,7 @@ class PourHole:
         self.bounds = tab_verts_co
         self.bounds.insert(len(tab_verts_co), self.center)
 
-class PinSticker:
-        __slots__ = ('bounds', 'center', 'rot', 'text', 'width', 'vertices', "pattern", "geometry", "geometry_co")
 
-        def __init__(self, uvedge, default_width, index, other: UVEdge, isreversed):
-            first_vertex, second_vertex = (uvedge.va, uvedge.vb) if not uvedge.uvface.flipped else (uvedge.vb, uvedge.va)
-            edge = first_vertex.co - second_vertex.co
-            self.width = edge.length
-            self.pattern = PinPattern(isreversed)
-            midsection_count = floor(self.width / self.pattern.width)
-            midsection_width = self.pattern.width * midsection_count
-            offset_left = (self.width - midsection_width) / 2
-            offset_right = (self.width - midsection_width) / 2
-            self.geometry, self.geometry_co = self.construct(offset_left, midsection_count, self.pattern)
-            # print(self.width, self.pattern.width, midsection_count)
-
-        def construct(self, offset_left, midsection_count, pattern):
-            tab_verts = []
-            tab_verts_co = []
-            tab = self.pattern.getGeometry()
-            for n in range(0, midsection_count):
-                for i in range(len(tab)):
-                    if not(tab[i].co.x == 0.5):
-                        vi = UVVertex((tab[i].co) + M.Vector((self.pattern.width * n + offset_left, 0)))
-                    else:
-                        vi = UVVertex((tab[i].co))
-
-                    tab_verts.insert(len(tab_verts), vi)
-                    tab_verts_co.insert(len(tab_verts), vi.co)
-
-            # print(offset_left)
-            return tab_verts, tab_verts_co
 
 
 class NumberAlone:

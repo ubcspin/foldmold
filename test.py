@@ -1,142 +1,122 @@
-import functools 
-import unittest
-import svglib
-from lxml import etree
+# import stickers
+import bpy
 
-## Fundamental stickers
-class AbstractSticker:
-    __slots__ = ("geometry", "width", "filename")
-    def __init__(self, filename, width):
-        self.filename = filename
-        self.width = width
-        self.geometry = self.load_geometry(filename)
+class AbstractStickerConstructor:
+    __slots__ = ('bounds', 'center', 'rot', 'text', 'width', 'vertices', "pattern", "geometry", "geometry_co", "offset_left", "offset_right")
+    def __init__(self, uvedge, pattern):
+        first_vertex, second_vertex = (uvedge.va, uvedge.vb) if not uvedge.uvface.flipped else (uvedge.vb, uvedge.va)
+        edge = first_vertex.co - second_vertex.co
+        self.width = edge.length
+        self.offset_left = (self.width - midsection_width) / 2
+        self.offset_right = (self.width - midsection_width) / 2
+        self.pattern = pattern
+        self.geometry, self.geometry_co = self.construct(self.offset_left, midsection_count, self.pattern)
 
-    def load_geometry(self, filename):
-        # s = Stickers()
-        return filename
 
-    def getWidth(self):
-        return self.width
+    def construct(self, offset_left, midsection_count, pattern):
+        tab_verts = []
+        tab_verts_co = []
+        tab = self.pattern.getGeometry()
+        for n in range(0, midsection_count):
+            for i in range(len(tab)):
+                if not(tab[i].co.x == 0.5):
+                    vi = UVVertex((tab[i].co) + M.Vector((self.pattern.width * n + offset_left, 0)))
+                else:
+                    vi = UVVertex((tab[i].co))
 
-class Tooth(AbstractSticker):
-    def __init__(self):
-        AbstractSticker.__init__(self, "tooth.svg", 0.005)
+                tab_verts.insert(len(tab_verts), vi)
+                tab_verts_co.insert(len(tab_verts), vi.co)
 
-class Gap(AbstractSticker):
-    def __init__(self):
-        AbstractSticker.__init__(self, "gap.svg", 0.003)
+        return tab_verts, tab_verts_co
 
-class Hole(AbstractSticker):
-    def __init__(self):
-        AbstractSticker.__init__(self, "hole.svg", 0.003)
+class PourHoleSticker(AbstractStickerConstructor):
+    def __init__(self, uvedge):
+        midsection_count = 1
+        midsection_width = self.pattern.width * midsection_count
+        AbstractStickerConstructor.__init__(self, uvedge, PourHolePattern(True))
 
-class PourHoleTile(AbstractSticker):
-    def __init__(self):
-        AbstractSticker.__init__(self, "pourhole.svg", 0.003)
+class SawtoothSticker(AbstractStickerConstructor):
+    def __init__(self, uvedge, default_width, index, other: UVEdge, isreversed):
+        midsection_count = floor(self.width / self.pattern.width)
+        midsection_width = self.pattern.width * midsection_count
+        AbstractStickerConstructor.__init__(self, uvedge, SawtoothPattern(isreversed))
 
-class Connector(AbstractSticker):
-    def __init__(self):
-        AbstractSticker.__init__(self, "gap2.svg", 0.003)
-
-class Pin(AbstractSticker):
-    def __init__(self):
-        AbstractSticker.__init__(self, "pin.svg", 0.003)
-
-## Patterns
-class AbstractPattern:
-    __slots__ = ("tileset", "width")
-    def __init__(self, isreversed, tileset_r, tileset_f):
-        self.isreversed = isreversed
-        self.tileset = tileset_r if isreversed else tileset_f
-        self.width = self.getWidth(self.tileset)
-
-    def getWidth(self, tileset):
-        if (len(tileset) == 1):
-            return tileset[0].width
-        else:
-            return functools.reduce(lambda a,b : a.width + b.width if b else a.width, tileset)
-        
-    def getGeometry(self):
-        vertices = []
-        for tile in self.tileset:
-            for vi in tile.geometry:
-                vertices.insert(len(vertices), vi)
-        return vertices
-
-class SawtoothPattern(AbstractPattern):
-    def __init__(self, isreversed):
-        AbstractPattern.__init__(self, isreversed, [Gap(), Tooth()], [Tooth(), Gap()])
-
-class PinPattern(AbstractPattern):
-    def __init__(self, isreversed):
-        AbstractPattern.__init__(self, isreversed, [Hole(), Connector()], [Pin(), Gap()])
-
-class PourHolePattern(AbstractPattern):
-    def __init__(self, isreversed):
-        AbstractPattern.__init__(self, isreversed, [PourHoleTile()], [PourHoleTile()])
+class PinSticker:
+    def __init__(self, uvedge, default_width, index, other: UVEdge, isreversed):
+        midsection_count = floor(self.width / self.pattern.width)
+        midsection_width = self.pattern.width * midsection_count
+        AbstractStickerConstructor.__init__(self, uvedge, PinPattern(isreversed))
 
 
 
-class StickerHandler:
-    __instance = None
-    @staticmethod 
-    def getInstance():
-        """ Static access method. """
-        if StickerHandler.__instance == None:
-            StickerHandler()
-        return StickerHandler.__instance
-    def __init__(self):
-        """ Virtually private constructor. """
-        if StickerHandler.__instance != None:
-            raise Exception("This class is a singleton! You only want one StickerHandler.")
-        else:
-            StickerHandler.__instance = self
+# import functools 
+# import unittest
+# import svglib
+# import bpy
+# from lxml import etree
+# import stickers
 
-    # self.pin_edges = []
-    # self.sawtooth_edges = []
-    # self.glue_edges = []
+# class StickerHandler:
+#     __instance = None
+#     @staticmethod 
+#     def getInstance():
+#         """ Static access method. """
+#         if StickerHandler.__instance == None:
+#             StickerHandler()
+#         return StickerHandler.__instance
+#     def __init__(self):
+#         """ Virtually private constructor. """
+#         if StickerHandler.__instance != None:
+#             raise Exception("This class is a singleton! You only want one StickerHandler.")
+#         else:
+#             StickerHandler.__instance = self
 
-## Unit tests
-class TestTileMethods(unittest.TestCase):
-    def test_widths(self):
-        t = Tooth()
-        g = Gap()
-        h = Hole()
-        p = PourHoleTile()
-        c = Connector()
-        i = Pin()
-        sp = SawtoothPattern(True)
-        pp = PinPattern(True)
-        php = PourHolePattern(True)
+#     # self.pin_edges = []
+#     # self.sawtooth_edges = []
+#     # self.glue_edges = []
 
-        self.assertEqual(t.width, .005)
-        self.assertEqual(g.width, .003)
-        self.assertEqual(h.width, .003)
-        self.assertEqual(p.width, .003)
-        self.assertEqual(c.width, .003)
-        self.assertEqual(i.width, .003)
-        self.assertEqual(sp.width, .008)
-        self.assertEqual(pp.width, .006)
-        self.assertEqual(php.width, .003)
+# ## Unit tests
+# class TestTileMethods(unittest.TestCase):
+#     def test_widths(self):
 
-    def test_reversals(self):
-        sp = SawtoothPattern(True)
-        self.assertTrue(sp.isreversed == True)
-        self.assertTrue(isinstance(sp.tileset[0], Gap))
-        self.assertTrue(isinstance(sp.tileset[1], Tooth))
+#         t = stickers.Tooth()
+#         g = stickers.Gap()
+#         h = stickers.Hole()
+#         p = stickers.PourHoleTile()
+#         c = stickers.Connector()
+#         i = stickers.Pin()
+#         sp = stickers.SawtoothPattern(True)
+#         pp = stickers.PinPattern(True)
+#         php = stickers.PourHolePattern(True)
 
-        sp = SawtoothPattern(False)
-        self.assertTrue(sp.isreversed == False)
-        self.assertTrue(isinstance(sp.tileset[0], Tooth))
-        self.assertTrue(isinstance(sp.tileset[1], Gap))
+#         self.assertEqual(t.width, .005)
+#         self.assertEqual(g.width, .003)
+#         self.assertEqual(h.width, .003)
+#         self.assertEqual(p.width, .003)
+#         self.assertEqual(c.width, .003)
+#         self.assertEqual(i.width, .003)
+#         self.assertEqual(sp.width, .008)
+#         self.assertEqual(pp.width, .006)
+#         self.assertEqual(php.width, .003)
 
-    def test_singleton(self):
-        s = StickerHandler()
-        s1 = StickerHandler.getInstance()
-        s2 = StickerHandler.getInstance()
-        self.assertEqual(s1, s2)
+#     def test_reversals(self):
+#         sp = stickers.SawtoothPattern(True)
+#         self.assertTrue(sp.isreversed == True)
+#         self.assertTrue(isinstance(sp.tileset[0], Gap))
+#         self.assertTrue(isinstance(sp.tileset[1], Tooth))
+
+#         sp = stickers.SawtoothPattern(False)
+#         self.assertTrue(sp.isreversed == False)
+#         self.assertTrue(isinstance(sp.tileset[0], Tooth))
+#         self.assertTrue(isinstance(sp.tileset[1], Gap))
+
+#     def test_singleton(self):
+#         s = StickerHandler()
+#         s1 = StickerHandler.getInstance()
+#         s2 = StickerHandler.getInstance()
+#         self.assertEqual(s1, s2)
 
 
-if __name__ == '__main__':
-    unittest.main()
+# if __name__ == '__main__':
+#     unittest.main()
 
