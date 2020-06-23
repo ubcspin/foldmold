@@ -97,7 +97,7 @@ class Stickers:
 
         self.vertices.append(v1)
 
-    def load_geometry(self, sp):
+    def load_geometry(self, filename):
         path_to_stickers_mac = "/Applications/Blender.app/Contents/Resources/2.82/scripts/addons/foldmold/Stickers/"
         path_to_stickers_win = "C:\Program Files\\Blender Foundation\\Blender 2.81\\2.81\\scripts\\addons\\Stickers\\"
 
@@ -108,171 +108,81 @@ class Stickers:
         else:
             raise ValueError('Please add path for system other than windows or osx')
 
-        return self.svg2uv(os_path.join(path_to_stickers, sp))
+        return self.svg2uv(os_path.join(path_to_stickers, filename))
 
 
 
-class Tooth:
-    __slots__ = ("geometry", "width")
+## Fundamental stickers
+class AbstractSticker:
+    __slots__ = ("geometry", "width", "filename")
+    def __init__(self, filename, width):
+        self.filename = filename
+        self.width = width
+        self.geometry = self.load_geometry(filename)
+
+    def load_geometry(self, filename):
+        s = Stickers()
+        return s.load_geometry(filename)
+
+    def getWidth(self):
+        return self.width
+
+class Tooth(AbstractSticker):
     def __init__(self):
+        AbstractSticker.__init__(self, "tooth.svg", 0.005)
 
-        def load_geometry():
-            s = Stickers()
-            return s.load_geometry("tooth.svg")
-
-        def getWidth():
-            # get bounding box of geometry
-            return 0.005 # stub
-
-        self.geometry = load_geometry()
-        self.width = getWidth()
-
-class Gap:
-    __slots__ = ("geometry", "width")
+class Gap(AbstractSticker):
     def __init__(self):
+        AbstractSticker.__init__(self, "gap.svg", 0.003)
 
-        def load_geometry():
-            s = Stickers()
-            return s.load_geometry("gap.svg")
-
-        def getWidth():
-            # get bounding box of geometry
-            return  0.003
-
-        self.geometry = load_geometry()
-        self.width = getWidth()
-
-class Hole:
-    __slots__ = ("geometry", "width")
+class Hole(AbstractSticker):
     def __init__(self):
+        AbstractSticker.__init__(self, "hole.svg", 0.003)
 
-        def load_geometry():
-            s = Stickers()
-            return s.load_geometry("hole.svg")
-
-        def getWidth():
-            # get bounding box of geometry
-            return 0.003 # stub
-
-        self.geometry = load_geometry()
-        self.width = getWidth()
-
-class PourHoleTile:
-    __slots__ = ("geometry", "width")
+class PourHoleTile(AbstractSticker):
     def __init__(self):
+        AbstractSticker.__init__(self, "pourhole.svg", 0.003)
 
-        def load_geometry():
-            s = Stickers()
-            return s.load_geometry("pourhole.svg")
-
-        def getWidth():
-            # get bounding box of geometry
-            return 0.003 # stub
-
-        self.geometry = load_geometry()
-        self.width = getWidth()
-
-class Connector:
-    __slots__ = ("geometry", "width")
+class Connector(AbstractSticker):
     def __init__(self):
+        AbstractSticker.__init__(self, "gap2.svg", 0.003)
 
-        def load_geometry():
-            s = Stickers()
-            return s.load_geometry("gap2.svg")
-
-        def getWidth():
-            # get bounding box of geometry
-            return  0.003
-
-        self.geometry = load_geometry()
-        self.width = getWidth()
-
-class Pin:
-    __slots__ = ("geometry", "width")
+class Pin(AbstractSticker):
     def __init__(self):
+        AbstractSticker.__init__(self, "pin.svg", 0.003)
 
-        def load_geometry():
-            s = Stickers()
-            return s.load_geometry("pin.svg")
-
-        def getWidth():
-            # get bounding box of geometry
-            return  0.003
-
-        self.geometry = load_geometry()
-        self.width = getWidth()
-
-
-class SawtoothPattern:
+## Patterns
+class AbstractPattern:
     __slots__ = ("tileset", "width")
-    def __init__(self, isreversed):
-        def getWidth(tileset):
-            width = 0
-            for tile in tileset:
-                width += tile.width
-            return width
+    def __init__(self, isreversed, tileset_r, tileset_f):
+        self.isreversed = isreversed
+        self.tileset = tileset_r if isreversed else tileset_f
+        self.width = self.getWidth(self.tileset)
 
-        if(isreversed):
-            self.tileset = [Tooth(), Gap()]
+    def getWidth(self, tileset):
+        if (len(tileset) == 1):
+            return tileset[0].width
         else:
-            self.tileset = [Gap(), Tooth()]
-        self.width = getWidth(self.tileset)
-
+            return functools.reduce(lambda a,b : a.width + b.width if b else a.width, tileset)
+        
     def getGeometry(self):
         vertices = []
         for tile in self.tileset:
             for vi in tile.geometry:
                 vertices.insert(len(vertices), vi)
-
         return vertices
 
-class PinPattern:
-    __slots__ = ("tileset", "width")
+class SawtoothPattern(AbstractPattern):
     def __init__(self, isreversed):
-        def getWidth(tileset):
-            width = 0
-            for tile in tileset:
-                width += tile.width
-            return width
+        AbstractPattern.__init__(self, isreversed, [Gap(), Tooth()], [Tooth(), Gap()])
 
+class PinPattern(AbstractPattern):
+    def __init__(self, isreversed):
+        AbstractPattern.__init__(self, isreversed, [Hole(), Connector()], [Pin(), Gap()])
 
-        if(isreversed):
-            self.tileset = [Hole(), Connector()]
-        else:
-            self.tileset = [Pin(), Gap()]
-        self.width = getWidth(self.tileset)
-
-
-    def getGeometry(self):
-        vertices = []
-        for tile in self.tileset:
-            for vi in tile.geometry:
-                vertices.insert(len(vertices), vi)
-
-        return vertices
-
-
-class PourHolePattern:
-    __slots__ = ("tileset", "width")
-    def __init__(self):
-        def getWidth(tileset):
-            width = 0
-            for tile in tileset:
-                width += tile.width
-            return width
-
-
-        self.tileset = [PourHoleTile()]
-        self.width = getWidth(self.tileset)
-
-
-    def getGeometry(self):
-        vertices = []
-        for tile in self.tileset:
-            for vi in tile.geometry:
-                vertices.insert(len(vertices), vi)
-
-        return vertices
+class PourHolePattern(AbstractPattern):
+    def __init__(self, isreversed):
+        AbstractPattern.__init__(self, isreversed, [PourHoleTile()], [PourHoleTile()])
 
 class UVVertex:
         """Vertex in 2D"""

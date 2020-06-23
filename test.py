@@ -92,9 +92,9 @@ class StickerHandler:
         else:
             StickerHandler.__instance = self
 
-    self.pin_edges = []
-    self.sawtooth_edges = []
-    self.glue_edges = []
+    # self.pin_edges = []
+    # self.sawtooth_edges = []
+    # self.glue_edges = []
 
 ## Unit tests
 class TestTileMethods(unittest.TestCase):

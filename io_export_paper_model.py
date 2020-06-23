@@ -201,21 +201,21 @@ class Unfolder:
         exporter.write(self.mesh, filepath)
 
 
-class Arrow:
-    """Mark in the document: an arrow denoting the number of the edge it points to"""
-    __slots__ = ('bounds', 'center', 'rot', 'text', 'size')
+# class Arrow:
+#     """Mark in the document: an arrow denoting the number of the edge it points to"""
+#     __slots__ = ('bounds', 'center', 'rot', 'text', 'size')
 
-    def __init__(self, uvedge, size, index):
-        self.text = str(index)
-        edge = (uvedge.vb.co - uvedge.va.co) if not uvedge.uvface.flipped else (uvedge.va.co - uvedge.vb.co)
-        self.center = (uvedge.va.co + uvedge.vb.co) / 2
-        self.size = size
-        tangent = edge.normalized()
-        cos, sin = tangent
-        self.rot = M.Matrix(((cos, -sin), (sin, cos)))
-        normal = M.Vector((sin, -cos))
-        self.bounds = [self.center, self.center + (1.2 * normal + tangent) * size,
-                       self.center + (1.2 * normal - tangent) * size]
+#     def __init__(self, uvedge, size, index):
+#         self.text = str(index)
+#         edge = (uvedge.vb.co - uvedge.va.co) if not uvedge.uvface.flipped else (uvedge.va.co - uvedge.vb.co)
+#         self.center = (uvedge.va.co + uvedge.vb.co) / 2
+#         self.size = size
+#         tangent = edge.normalized()
+#         cos, sin = tangent
+#         self.rot = M.Matrix(((cos, -sin), (sin, cos)))
+#         normal = M.Vector((sin, -cos))
+#         self.bounds = [self.center, self.center + (1.2 * normal + tangent) * size,
+#                        self.center + (1.2 * normal - tangent) * size]
 
 
 # /////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -364,8 +364,6 @@ class ApplyEdgeType(bpy.types.Operator):
         ob = context.object
         # ob.update_from_editmode()  # not available in older versions!
         # selectedEdges= [e for e in ob.data.edges if e.select]
-
-
 
         me = ob.data
         bm = bmesh.from_edit_mesh(me)
