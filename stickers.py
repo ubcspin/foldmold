@@ -4,7 +4,7 @@ import logging
 import mathutils as M
 import os.path as os_path
 import sys
-# import bmesh
+import bmesh
 import bpy
 import bl_operators
 from math import pi, ceil, asin, atan2, floor
@@ -463,7 +463,7 @@ class Edge:
 
 class Sticker:
     """Mark in the document: sticker tab"""
-    __slots__ = ('bounds', 'center', 'rot', 'text', 'width', 'vertices')
+    __slots__ = ('bounds', 'center', 'rot', 'text', 'width', 'vertices', 'sticker')
 
     def __init__(self, uvedge, default_width, index, other: UVEdge, isreversed=False):
         """Sticker is directly attached to the given UVEdge"""
@@ -482,7 +482,7 @@ class Sticker:
         self.vertices = []
         self.bounds = []
         self.center = (uvedge.va.co + uvedge.vb.co) / 2 # changes if not tile pattern
-        self.sticker = generate_sticker(uvedge, default_width, index, other, isreversed)
+        self.sticker = self.generate_sticker(uvedge, default_width, index, other, isreversed)
 
         if (uvedge.type != 'pin' or uvedge.type != 'tooth'):
             k = 0.5
@@ -543,8 +543,6 @@ class Sticker:
             self.vertices.insert(0, second_vertex)
             self.bounds.insert(len(self.bounds), self.center)
 
-
-
     # Returns: AbstractSticker object
     def generate_sticker(self, uvedge, default_width, index, other, isreversed):
         if (uvedge.type == 'pin'):
@@ -559,19 +557,33 @@ class AbstractStickerConstructor:
         first_vertex, second_vertex = (uvedge.va, uvedge.vb) if not uvedge.uvface.flipped else (uvedge.vb, uvedge.va)
         edge = first_vertex.co - second_vertex.co
         self.width = edge.length
+        self.pattern = pattern
+        midsection_count = self.get_midsection_count(self.width, self.pattern)
+        midsection_width = self.get_midsection_width(midsection_count, self.pattern)
         self.offset_left = (self.width - midsection_width) / 2
         self.offset_right = (self.width - midsection_width) / 2
-        self.pattern = pattern
         self.geometry, self.geometry_co = self.construct(self.offset_left, midsection_count, self.pattern)
+
+    def get_midsection_count(self, width, pattern):
+        if (isinstance(pattern, PourHoleSticker)):
+            return 1
+        else:
+            return floor(width / pattern.width)
+
+    def get_midsection_width(self, midsection_count, pattern):
+        if (isinstance(pattern, PourHoleSticker)):
+            return pattern.width
+        else:
+            return pattern.width * midsection_count
 
     def construct(self, offset_left, midsection_count, pattern):
         tab_verts = []
         tab_verts_co = []
-        tab = self.pattern.getGeometry()
+        tab = pattern.getGeometry()
         for n in range(0, midsection_count):
             for i in range(len(tab)):
                 if not(tab[i].co.x == 0.5):
-                    vi = UVVertex((tab[i].co) + M.Vector((self.pattern.width * n + offset_left, 0)))
+                    vi = UVVertex((tab[i].co) + M.Vector((pattern.width * n + offset_left, 0)))
                 else:
                     vi = UVVertex((tab[i].co))
 
@@ -582,22 +594,17 @@ class AbstractStickerConstructor:
 
 class PourHoleSticker(AbstractStickerConstructor):
     def __init__(self, uvedge):
-        midsection_count = 1
-        midsection_width = self.pattern.width * midsection_count
         AbstractStickerConstructor.__init__(self, uvedge, PourHolePattern(True))
 
 class SawtoothSticker(AbstractStickerConstructor):
     def __init__(self, uvedge, default_width, index, other: UVEdge, isreversed):
-        midsection_count = floor(self.width / self.pattern.width)
-        midsection_width = self.pattern.width * midsection_count
         AbstractStickerConstructor.__init__(self, uvedge, SawtoothPattern(isreversed))
 
 class PinSticker:
     def __init__(self, uvedge, default_width, index, other: UVEdge, isreversed):
-        midsection_count = floor(self.width / self.pattern.width)
-        midsection_width = self.pattern.width * midsection_count
         AbstractStickerConstructor.__init__(self, uvedge, PinPattern(isreversed))
-        
+
+
 class PourHole:
     """Mark in the document: sticker tab"""
     __slots__ = ('bounds', 'center', 'rot', 'text', 'width', 'vertices')
