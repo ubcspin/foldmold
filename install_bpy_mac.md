@@ -54,6 +54,21 @@ Then we can test installation by
 ```
 python37 -c "import bpy; bpy.context.scene.render.engine = 'CYCLES'; bpy.ops.render.render(write_still=True)
 ```
+
+## Adding svglib to Blender's python
+```
+cd /path/to/blender/python/bin
+./pythonX.XX -m ensurepip
+./pythonX.XX -m pip install svglib
+```
+where XX.X should be replaced by the version number. In my setup it looks like:
+
+```
+cd /Applications/Blender.app/Contents/Resources/2.82/python/bin
+./python3.7m -m ensurepip
+./python3.7m -m pip install svglib
+```
+
 ### Trouble shooting
 I ran into segmentation fault with 
 ```
