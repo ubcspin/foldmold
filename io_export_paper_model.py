@@ -349,8 +349,43 @@ class ClearAllSeams(bpy.types.Operator):
 
         return {'FINISHED'}
 
-class ApplyEdgeType(bpy.types.Operator):
+class ApplyScores(bpy.types.Operator):
+    current_score_num = 0
+    scoredir = 'x'
+    bl_idname = "mesh.apply_scores"
+    bl_label = "Apply Scores"
+    bl_description = "Apply Scores"
 
+    @classmethod
+    def poll(cls, context):
+        return context.active_object and context.active_object.type == 'MESH'
+
+    def execute(self, context):
+        ob = context.object
+        me = ob.data
+        bm = bmesh.from_edit_mesh(me)
+        selectedEdges = [e for e in bm.edges if e.select]
+
+        dirlist = []
+        scoreedges = []
+        for e in selectedEdges:
+            diff = e.verts[0].co - e.verts[1].co
+
+            if(self.scoredir == 'x' and abs(diff.x) > abs(diff.y) and abs(diff.x) > abs(diff.z)):
+                dirlist.append(e)
+            elif(self.scoredir == 'y' and abs(diff.y) > abs(diff.x) and abs(diff.y) > abs(diff.z)):
+                dirlist.append(e)
+            elif (self.scoredir == 'z' and abs(diff.z) > abs(diff.y) and abs(diff.z) > abs(diff.x)):
+                dirlist.append(e)
+            else:
+                scoreedges.append(e)
+        bmesh.ops.subdivide_edges(bm, edges=scoreedges, cuts=self.current_score_num)
+        bmesh.update_edit_mesh(me)
+
+        return {'FINISHED'}
+
+class ApplyEdgeType(bpy.types.Operator):
+    current_edge = "glue"
     bl_idname = "mesh.apply_edge_type"
     bl_label = "Apply Edge Type"
     bl_description = "Apply Edge Type"
@@ -373,12 +408,12 @@ class ApplyEdgeType(bpy.types.Operator):
         selectedEdgesSeams = [e for e in bm.edges if e.select]
 
         print(len(selectedEdges))
-        print(current_edge)
-        if(current_edge == "pin"):
+        print(self.current_edge)
+        if(self.current_edge == "pin"):
             s.pin_edges.extend(selectedEdges)
-        elif(current_edge == "tooth"):
+        elif(self.current_edge == "tooth"):
             s.sawtooth_edges.extend(selectedEdges)
-        elif(current_edge == "glue"):
+        elif(self.current_edge == "glue"):
             s.glue_edges.extend(selectedEdges)
         print(s.pin_edges)
         print(s.sawtooth_edges)
@@ -846,6 +881,11 @@ class VIEW3D_PT_paper_model_tools(bpy.types.Panel):
         else:
             layout.operator("mesh.clear_all_seams")
 
+        row = layout.row()
+        row.prop(context.scene, "score_direction")
+        row = layout.row()
+        row.prop(context.scene, "score_num")
+        layout.operator("mesh.apply_scores")
 
 class VIEW3D_PT_paper_model_settings(bpy.types.Panel):
     bl_space_type = 'VIEW_3D'
@@ -1005,6 +1045,7 @@ module_classes = (
     ExportPaperModel,
     ClearAllSeams,
     ApplyEdgeType,
+    ApplyScores,
     SelectIsland,
     AddPresetPaperModel,
     FaceList,
@@ -1016,16 +1057,29 @@ module_classes = (
     VIEW3D_PT_paper_model_settings,
 )
 
-def myindex(self, context):
-    global current_edge
+def index_edge (self, context):
+
     if (int(context.scene.dropdown_list) == 1):
-        current_edge = "auto"
+        ApplyEdgeType.current_edge = "auto"
     elif(int(context.scene.dropdown_list) == 2):
-        current_edge = "pin"
+        ApplyEdgeType.current_edge = "pin"
     elif(int(context.scene.dropdown_list) == 3):
-        current_edge = "tooth"
+        ApplyEdgeType.current_edge = "tooth"
     elif(int(context.scene.dropdown_list) == 4):
-        current_edge = "glue"
+        ApplyEdgeType.current_edge = "glue"
+
+def index_score(self, context):
+
+    if (int(context.scene.score_direction) == 1):
+        ApplyScores.scoredir = 'x'
+    elif(int(context.scene.score_direction) == 2):
+        ApplyScores.scoredir = 'y'
+    elif(int(context.scene.score_direction) == 3):
+        ApplyScores.scoredir = 'z'
+
+
+def score_density(self, context):
+   ApplyScores.current_score_num = context.scene.score_num
 
 def register():
     bpy.types.Scene.paper_model = bpy.props.PointerProperty(
@@ -1045,7 +1099,24 @@ def register():
             ('3', 'Sawtooth Join', ''),
             ('4', 'Glue Tab', ''),
         ),
-        update=myindex
+    update=index_edge
+    )
+    bpy.types.Scene.score_direction = bpy.props.EnumProperty(
+        name="Score axis",
+        items=(
+            ('1', 'x', ''),
+            ('2', 'y', ''),
+            ('3', 'z', ''),
+        ),
+        update=index_score
+    )
+
+    bpy.types.Scene.score_num = bpy.props.IntProperty(
+        name="Number of Scores",
+        default=5,
+        min=1,
+        max=20,
+        update=score_density
     )
     bpy.types.TOPBAR_MT_file_export.append(menu_func_export)
     bpy.types.VIEW3D_MT_edit_mesh.prepend(menu_func_unfold)
