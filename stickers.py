@@ -656,9 +656,6 @@ class PourHole:
         self.bounds = tab_verts_co
         self.bounds.insert(len(tab_verts_co), self.center)
 
-
-
-
 class NumberAlone:
     """Mark in the document: numbering inside the island denoting edges to be sticked"""
     __slots__ = ('bounds', 'center', 'rot', 'text', 'size')
