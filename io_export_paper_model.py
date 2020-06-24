@@ -175,9 +175,9 @@ class ApplyEdgeType(bpy.types.Operator):
             s.sawtooth_edges.extend(selectedEdges)
         elif(current_edge == "glue"):
             s.glue_edges.extend(selectedEdges)
-        print(pin_edges)
-        print(sawtooth_edges)
-        print(glue_edges)
+        print(s.pin_edges)
+        print(s.sawtooth_edges)
+        print(s.glue_edges)
 
         for edge in selectedEdgesSeams:
             edge.seam = True
