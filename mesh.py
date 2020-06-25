@@ -1,6 +1,7 @@
 import mathutils as M
 import bpy
 from . import stickers
+from . import unfold
 from . import utilities
 from itertools import chain, repeat, product, combinations
 u = utilities.Utilities()
@@ -57,11 +58,11 @@ class Mesh:
         if not (null_edges or null_faces or twisted_faces or inverted_scale):
             return True
         if inverted_scale:
-            raise UnfoldError("The object is flipped inside-out.\n"
+            raise unfold.UnfoldError("The object is flipped inside-out.\n"
                               "You can use Object -> Apply -> Scale to fix it. Export failed.")
         disease = [("Remove Doubles", null_edges or null_faces), ("Triangulate", twisted_faces)]
         cure = " and ".join(s for s, k in disease if k)
-        raise UnfoldError(
+        raise unfold.UnfoldError(
             "The model contains:\n" +
             (" {} zero-length edge(s)\n".format(len(null_edges)) if null_edges else "") +
             (" {} zero-area face(s)\n".format(len(null_faces)) if null_faces else "") +
@@ -339,7 +340,7 @@ class Mesh:
 
         if any(island.bounding_box.x > cage_size.x or island.bounding_box.y > cage_size.y for island in self.islands):
             # print(cage_size)
-            raise UnfoldError(
+            raise unfold.UnfoldError(
                 "An island is too big to fit onto page of the given size. "
                 "Either downscale the model or find and split that island manually.\n"
                 "Export failed, sorry.")
@@ -400,7 +401,7 @@ class Mesh:
 
     def bake(self, faces, image):
         if not self.looptex:
-            raise UnfoldError(
+            raise unfold.UnfoldError(
                 "The mesh has no UV Map slots left. Either delete a UV Map or export the net without textures.")
         ob = bpy.context.active_object
         me = ob.data
@@ -424,7 +425,7 @@ class Mesh:
             bpy.ops.object.bake(type=bake_type, margin=1, use_selected_to_active=sta, cage_extrusion=100,
                                 use_clear=False)
         except RuntimeError as e:
-            raise UnfoldError(*e.args)
+            raise unfold.UnfoldError(*e.args)
         finally:
             for mat, node in temp_nodes.items():
                 mat.node_tree.nodes.remove(node)
@@ -627,7 +628,7 @@ def join(uvedge_a, uvedge_b, size_limit=None, epsilon=1e-6):
                     break
 
     if uvedge_b not in merged_uvedges:
-        raise UnfoldError("Export failed. Please report this error, including the model if you can.")
+        raise unfold.UnfoldError("Export failed. Please report this error, including the model if you can.")
 
     boundary_other = [
         stickers.PhantomUVEdge(phantoms[uvedge.va], phantoms[uvedge.vb], flipped ^ uvedge.uvface.flipped)
