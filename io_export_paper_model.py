@@ -1128,6 +1128,15 @@ class OBJECT_OT_Laser_Slicer(bpy.types.Operator):
         r.slice_x(object_to_be_ribbed)
         return {'FINISHED'}
 
+class OBJECT_OT_Conformer(bpy.types.Operator):
+    bl_label = "Conformer"
+    bl_idname = "object.conformer"
+
+    def execute(self, context):
+        #do a boolean difference between the slices and the object
+
+        r.conform()
+        return {'FINISHED'}
 
 class OBJECT_PT_Laser_Slicer_Panel(bpy.types.Panel):
     bl_label = "Ribbing Panel"
@@ -1160,7 +1169,8 @@ class OBJECT_PT_Laser_Slicer_Panel(bpy.types.Panel):
             split = layout.split()
             col = split.column()
             col.operator("object.laser_slicer", text="Add Ribbing")
-
+            row = layout.row()
+            row.operator("object.conformer", text="Conform Ribbing")
 
 def on_update_material(self, context):
     self.laser_slicer_material_thick = storage.global_materials_thickness[self.laser_slicer_material]
@@ -1211,6 +1221,7 @@ module_classes = (
     VIEW3D_PT_paper_model_settings,
     OBJECT_PT_Laser_Slicer_Panel,
     OBJECT_OT_Laser_Slicer,
+    OBJECT_OT_Conformer,
     Slicer_Settings
 )
 

@@ -129,7 +129,7 @@ class Stickers:
 
     def load_geometry(self, filename):
         path_to_stickers_mac = "/Applications/Blender.app/Contents/Resources/2.82/scripts/addons/foldmold/Stickers/"
-        path_to_stickers_win = "C:\Program Files\\Blender Foundation\\Blender 2.81\\2.81\\scripts\\addons\\Stickers\\"
+        path_to_stickers_win = "C:\Program Files\\Blender Foundation\\Blender 2.81\\2.81\\scripts\\addons\\foldmold\\Stickers\\"
 
         if sys.platform.startswith('win32'):
             path_to_stickers = path_to_stickers_win
