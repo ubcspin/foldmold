@@ -22,17 +22,38 @@ from . import stickers
 s = stickers.Stickers()
 
 from . import mesh
+from . import ribbing
+r = ribbing.Ribbing()
 from . import settings
 from . import unfold
 
 
-global_paper_sizes = [
-    ('USER', "User defined", "User defined paper size"),
-    ('A4', "A4", "International standard paper size"),
-    ('A3', "A3", "International standard paper size"),
-    ('US_LETTER', "Letter", "North American paper size"),
-    ('US_LEGAL', "Legal", "North American paper size")
-]
+
+class StorageUI:
+    global_paper_sizes = [
+        ('USER', "User defined", "User defined paper size"),
+        ('A4', "A4", "International standard paper size"),
+        ('US_LETTER', "Letter", "North American paper size"),
+        ('A3', "A3", "International standard paper size"),
+        ('US_LEGAL', "Legal", "North American paper size")
+    ]
+
+    global_materials = [
+        ('CARDBOARD', 'Cardboard', ''),
+        ('CHIPBOARD', 'Chipboard', '')
+    ]
+
+    global_materials_thickness = {'CARDBOARD': 3, 'CHIPBOARD': 0.8}
+    current_edge = "glue"
+
+
+    scoredir = "x"
+
+
+    current_thickness = 3
+    current_num_slices = 10
+storage = StorageUI()
+
 
 class Unfold(bpy.types.Operator):
     """Blender Operator: unfold the selected object."""
@@ -146,8 +167,41 @@ class ClearAllSeams(bpy.types.Operator):
 
         return {'FINISHED'}
 
-class ApplyEdgeType(bpy.types.Operator):
+class ApplyScores(bpy.types.Operator):
+    current_score_num = 0
+    bl_idname = "mesh.apply_scores"
+    bl_label = "Apply Scores"
+    bl_description = "Apply Scores"
 
+    @classmethod
+    def poll(cls, context):
+        return context.active_object and context.active_object.type == 'MESH'
+
+    def execute(self, context):
+        ob = context.object
+        me = ob.data
+        bm = bmesh.from_edit_mesh(me)
+        selectedEdges = [e for e in bm.edges if e.select]
+
+        dirlist = []
+        scoreedges = []
+        for e in selectedEdges:
+            diff = e.verts[0].co - e.verts[1].co
+
+            if(storage.scoredir == 'x' and abs(diff.x) > abs(diff.y) and abs(diff.x) > abs(diff.z)):
+                dirlist.append(e)
+            elif(storage.scoredir == 'y' and abs(diff.y) > abs(diff.x) and abs(diff.y) > abs(diff.z)):
+                dirlist.append(e)
+            elif (storage.scoredir == 'z' and abs(diff.z) > abs(diff.y) and abs(diff.z) > abs(diff.x)):
+                dirlist.append(e)
+            else:
+                scoreedges.append(e)
+        bmesh.ops.subdivide_edges(bm, edges=scoreedges, cuts=self.current_score_num)
+        bmesh.update_edit_mesh(me)
+
+        return {'FINISHED'}
+
+class ApplyEdgeType(bpy.types.Operator):
     bl_idname = "mesh.apply_edge_type"
     bl_label = "Apply Edge Type"
     bl_description = "Apply Edge Type"
@@ -168,12 +222,12 @@ class ApplyEdgeType(bpy.types.Operator):
         selectedEdgesSeams = [e for e in bm.edges if e.select]
 
         print(len(selectedEdges))
-        print(current_edge)
-        if(current_edge == "pin"):
+        print(storage.current_edge)
+        if(storage.current_edge == "pin"):
             s.pin_edges.extend(selectedEdges)
-        elif(current_edge == "tooth"):
+        elif(storage.current_edge == "tooth"):
             s.sawtooth_edges.extend(selectedEdges)
-        elif(current_edge == "glue"):
+        elif(storage.current_edge == "glue"):
             s.glue_edges.extend(selectedEdges)
         print(s.pin_edges)
         print(s.sawtooth_edges)
@@ -418,8 +472,6 @@ def island_index_changed(self, context):
         bpy.ops.mesh.select_paper_island(operation='REPLACE')
 
 
-class FaceList(bpy.types.PropertyGroup):
-    id: bpy.props.IntProperty(name="Face ID")
 
 class PaperModelStyle(bpy.types.PropertyGroup):
     line_styles = [
@@ -506,7 +558,7 @@ class PaperModelSettings(bpy.types.PropertyGroup):
         default=False, update=page_size_preset_changed)
     page_size_preset: bpy.props.EnumProperty(
         name="Page Size", description="Maximal size of an island",
-        default='A4', update=page_size_preset_changed, items=global_paper_sizes)
+        default='A4', update=page_size_preset_changed, items=storage.global_paper_sizes)
     output_size_x: bpy.props.FloatProperty(
         name="Width", description="Maximal width of an island",
         default=0.2, soft_min=0.105, soft_max=0.841, subtype="UNSIGNED", unit="LENGTH")
@@ -516,6 +568,11 @@ class PaperModelSettings(bpy.types.PropertyGroup):
     scale: bpy.props.FloatProperty(
         name="Scale", description="Divisor of all dimensions when exporting",
         default=1, soft_min=1.0, soft_max=100.0, subtype='FACTOR', precision=1)
+
+
+class FaceList(bpy.types.PropertyGroup):
+
+    id: bpy.props.IntProperty(name="Face ID")
 
 class IslandList(bpy.types.PropertyGroup):
     faces: bpy.props.CollectionProperty(
@@ -624,7 +681,7 @@ class ExportPaperModel(bpy.types.Operator):
         name="Directory", description="Directory of the file", options={'SKIP_SAVE'})
     page_size_preset: bpy.props.EnumProperty(
         name="Page Size", description="Size of the exported document",
-        default='A4', update=page_size_preset_changed, items=global_paper_sizes)
+        default='A4', update=page_size_preset_changed, items=storage.global_paper_sizes)
     output_size_x: bpy.props.FloatProperty(
         name="Page Width", description="Width of the exported document",
         default=0.210, soft_min=0.105, soft_max=0.841, subtype="UNSIGNED", unit="LENGTH")
@@ -859,30 +916,305 @@ class ExportPaperModel(bpy.types.Operator):
             box.prop(self.style, "text_color")
 
 
+
+class VIEW3D_MT_paper_model_presets(bpy.types.Menu):
+    bl_label = "Paper Model Presets"
+    preset_subdir = "export_mesh"
+    draw = bpy.types.Menu.draw_preset
+    preset_operator = "script.execute_preset"
+
+class AddPresetPaperModel(bl_operators.presets.AddPresetBase, bpy.types.Operator):
+
+    """Add or remove a Paper Model Preset"""
+    bl_idname = "export_mesh.paper_model_preset_add"
+    bl_label = "Add Paper Model Preset"
+    preset_menu = "VIEW3D_MT_paper_model_presets"
+    preset_subdir = "export_mesh"
+    preset_defines = ["op = bpy.context.active_operator"]
+
+    @property
+    def preset_values(self):
+        op = bpy.ops.export_mesh.paper_model
+        blacklist = bpy.types.Operator.bl_rna.properties.keys()
+        properties = op.get_rna().bl_rna.properties.items()
+        return [
+            "op.{}".format(prop_id) for (prop_id, prop) in properties
+            if not (prop.is_hidden or prop.is_skip_save or prop_id in blacklist)]
+
+
+class VIEW3D_PT_paper_model_tools(bpy.types.Panel):
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_label = "Unfold"
+    bl_category = 'Paper'
+    def draw(self, context):
+
+        layout = self.layout
+        sce = context.scene
+        obj = context.active_object
+        mesh = obj.data if obj and obj.type == 'MESH' else None
+
+        layout.operator("mesh.unfold")
+        row = layout.row()
+        row.prop(context.scene, "dropdown_list")
+        layout.operator("mesh.apply_edge_type")
+
+
+        if context.mode == 'EDIT_MESH':
+            row = layout.row(align=True)
+            row.operator("mesh.mark_seam", text="Mark Seam").clear = False
+            row.operator("mesh.mark_seam", text="Clear Seam").clear = True
+        else:
+            layout.operator("mesh.clear_all_seams")
+
+        row = layout.row()
+        row.prop(context.scene, "score_direction")
+        row = layout.row()
+        row.prop(context.scene, "score_num")
+        layout.operator("mesh.apply_scores")
+
+class VIEW3D_PT_paper_model_settings(bpy.types.Panel):
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Paper'
+    bl_label = "Export"
+
+    def draw(self, context):
+        layout = self.layout
+        sce = context.scene
+        obj = context.active_object
+        mesh = obj.data if obj and obj.type == 'MESH' else None
+
+        layout.operator("export_mesh.paper_model")
+        props = sce.paper_model
+        layout.prop(props, "scale", text="Model Scale:  1/")
+
+
+        layout.prop(props, "limit_by_page")
+        col = layout.column()
+        col.active = props.limit_by_page
+        col.prop(props, "page_size_preset")
+        sub = col.column(align=True)
+        sub.active = props.page_size_preset == 'USER'
+        sub.prop(props, "output_size_x")
+        sub.prop(props, "output_size_y")
+
+
+class DATA_PT_paper_model_islands(bpy.types.Panel):
+    bl_space_type = 'PROPERTIES'
+    bl_region_type = 'WINDOW'
+    bl_context = "data"
+    bl_label = "Paper Model Islands"
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_WORKBENCH'}
+
+    def draw(self, context):
+        layout = self.layout
+        sce = context.scene
+        obj = context.active_object
+        mesh = obj.data if obj and obj.type == 'MESH' else None
+
+        layout.operator("mesh.unfold", icon='FILE_REFRESH')
+        if mesh and mesh.paper_island_list:
+            layout.label(
+                text="1 island:" if len(mesh.paper_island_list) == 1 else
+                "{} islands:".format(len(mesh.paper_island_list)))
+            layout.template_list(
+                'UI_UL_list', 'paper_model_island_list', mesh,
+                'paper_island_list', mesh, 'paper_island_index', rows=1, maxrows=5)
+            sub = layout.split(align=True)
+            sub.operator("mesh.select_paper_island", text="Select").operation = 'ADD'
+            sub.operator("mesh.select_paper_island", text="Deselect").operation = 'REMOVE'
+            sub.prop(sce.paper_model, "sync_island", icon='UV_SYNC_SELECT', toggle=True)
+            if mesh.paper_island_index >= 0:
+                list_item = mesh.paper_island_list[mesh.paper_island_index]
+                sub = layout.column(align=True)
+                sub.prop(list_item, "auto_label")
+                sub.prop(list_item, "label")
+                sub.prop(list_item, "auto_abbrev")
+                row = sub.row()
+                row.active = not list_item.auto_abbrev
+                row.prop(list_item, "abbreviation")
+
+
+        else:
+            layout.box().label(text="Not unfolded")
+
+        row.prop(context.scene, "dropdown_list")
+
+def label_changed(self, context):
+    """The label of an island was changed"""
+    # accessing properties via [..] to avoid a recursive call after the update
+    self["auto_label"] = not self.label or self.label.isspace()
+    island_item_changed(self, context)
+
+
+def island_item_changed(self, context):
+    """The labelling of an island was changed"""
+
+    def increment(abbrev, collisions):
+        letters = "ABCDEFGHIJKLMNPQRSTUVWXYZ123456789"
+        while abbrev in collisions:
+            abbrev = abbrev.rstrip(letters[-1])
+            abbrev = abbrev[:2] + letters[letters.find(abbrev[-1]) + 1 if len(abbrev) == 3 else 0]
+        return abbrev
+
+    # accessing properties via [..] to avoid a recursive call after the update
+    island_list = context.active_object.data.paper_island_list
+    if self.auto_label:
+        self["label"] = ""  # avoid self-conflict
+        number = 1
+        while any(item.label == "Island {}".format(number) for item in island_list):
+            number += 1
+        self["label"] = "Island {}".format(number)
+    if self.auto_abbrev:
+        self["abbreviation"] = ""  # avoid self-conflict
+        abbrev = "".join(u.first_letters(self.label))[:3].upper()
+        self["abbreviation"] = increment(abbrev, {item.abbreviation for item in island_list})
+    elif len(self.abbreviation) > 3:
+        self["abbreviation"] = self.abbreviation[:3]
+    self.name = "[{}] {} ({} {})".format(
+        self.abbreviation, self.label, len(self.faces), "faces" if len(self.faces) > 1 else "face")
+
+def island_index_changed(self, context):
+
+    """The active island was changed"""
+    if context.scene.paper_model.sync_island and SelectIsland.poll(context):
+        bpy.ops.mesh.select_paper_island(operation='REPLACE')
+
+
+
+def index_edge (self, context):
+
+    if (int(context.scene.dropdown_list) == 1):
+        storage.current_edge = "auto"
+    elif(int(context.scene.dropdown_list) == 2):
+        storage.current_edge = "pin"
+    elif(int(context.scene.dropdown_list) == 3):
+        storage.current_edge = "tooth"
+    elif(int(context.scene.dropdown_list) == 4):
+        storage.current_edge = "glue"
+
+def index_score(self, context):
+
+    if (int(context.scene.score_direction) == 1):
+        ApplyScores.scoredir = 'x'
+    elif(int(context.scene.score_direction) == 2):
+        ApplyScores.scoredir = 'y'
+    elif(int(context.scene.score_direction) == 3):
+        ApplyScores.scoredir = 'z'
+
+
+def score_density(self, context):
+   ApplyScores.current_score_num = context.scene.score_num
+
+
+
+#************************Slicer Panel
+
+def newrow(layout, s1, root, s2):
+    row = layout.row()
+    row.label(text = s1)
+    row.prop(root, s2)
+
+class OBJECT_OT_Laser_Slicer(bpy.types.Operator):
+    bl_label = "Laser Slicer"
+    bl_idname = "object.laser_slicer"
+
+    def execute(self, context):
+        #create slices distributed across object
+
+        r.settings(storage.current_num_slices, storage.current_thickness)
+        object_to_be_ribbed = bpy.context.active_object
+        r.slice_x(object_to_be_ribbed)
+        return {'FINISHED'}
+
+
+class OBJECT_PT_Laser_Slicer_Panel(bpy.types.Panel):
+    bl_label = "Ribbing Panel"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"
+    bl_context = "objectmode"
+    bl_category = "Ribbing"
+
+    def draw(self, context):
+        scene = context.scene
+        layout = self.layout
+        row = layout.row()
+        row.label(text="Material dimensions:")
+        newrow(layout, "Material:", scene.slicer_settings, 'laser_slicer_material')
+        newrow(layout, "Thickness (mm):", scene.slicer_settings, 'laser_slicer_material_thick')
+        newrow(layout, "Width (mm):", scene.slicer_settings, 'laser_slicer_material_width')
+        newrow(layout, "Height (mm):", scene.slicer_settings, 'laser_slicer_material_height')
+        newrow(layout, "Direction:", scene.slicer_settings, 'direction')
+        newrow(layout, "Number of Slices:", scene.slicer_settings, 'num_slices')
+
+        newrow(layout, "Cut spacing (mm):", scene.slicer_settings, 'laser_slicer_cut_thickness')
+        newrow(layout, "Export file(s):", scene.slicer_settings, 'laser_slicer_ofile')
+
+        if context.active_object and context.active_object.select_get() and context.active_object.type == 'MESH' and context.active_object.data.polygons:
+            row = layout.row()
+            cutdir = scene.slicer_settings.direction
+            num_slices = scene.slicer_settings.num_slices
+
+            # if bpy.data.filepath or context.scene.slicer_settings.laser_slicer_ofile:
+            split = layout.split()
+            col = split.column()
+            col.operator("object.laser_slicer", text="Add Ribbing")
+
+
+def on_update_material(self, context):
+    self.laser_slicer_material_thick = storage.global_materials_thickness[self.laser_slicer_material]
+    storage.current_thickness = storage.global_materials_thickness[self.laser_slicer_material]
+
+def on_update_num(self, context):
+    storage.current_num_slices = self.num_slices
+
+
+class Slicer_Settings(bpy.types.PropertyGroup):
+    direction: bpy.props.StringProperty(name="", description="Axis along which to cut", default='x')
+    num_slices: bpy.props.IntProperty(name="", description="number of slices", min=1, max=500, default=10, update=on_update_num)
+    laser_slicer_material: bpy.props.EnumProperty(name="Material", description="Cutting material", default='CARDBOARD',
+                                        update=on_update_material,
+                                        items=storage.global_materials)
+    laser_slicer_material_thick: bpy.props.FloatProperty(
+        name="", description="Thickness of the cutting material in mm",
+        min=0.1, max=50, default=3)
+    laser_slicer_material_width: bpy.props.FloatProperty(
+        name="", description="Width of the cutting material in mm",
+        min=1, max=5000, default=450)
+    laser_slicer_material_height: bpy.props.FloatProperty(
+        name="", description="Height of the cutting material in mm",
+        min=1, max=5000, default=450)
+
+    laser_slicer_cut_thickness: bpy.props.FloatProperty(
+        name="", description="Expected thickness of the laser cut (mm)",
+        min=0, max=5, default=1)
+    laser_slicer_ofile: bpy.props.StringProperty(name="", description="Location of the exported file", default="",
+                                       subtype="FILE_PATH")
+
+
+
 module_classes = (
+    Unfold,
     ExportPaperModel,
     ClearAllSeams,
     ApplyEdgeType,
+    ApplyScores,
     SelectIsland,
     AddPresetPaperModel,
     FaceList,
     IslandList,
+    PaperModelSettings,
     VIEW3D_MT_paper_model_presets,
     DATA_PT_paper_model_islands,
     VIEW3D_PT_paper_model_tools,
     VIEW3D_PT_paper_model_settings,
+    OBJECT_PT_Laser_Slicer_Panel,
+    OBJECT_OT_Laser_Slicer,
+    Slicer_Settings
 )
 
-def myindex(self, context):
-    global current_edge
-    if (int(context.scene.dropdown_list) == 1):
-        current_edge = "auto"
-    elif(int(context.scene.dropdown_list) == 2):
-        current_edge = "pin"
-    elif(int(context.scene.dropdown_list) == 3):
-        current_edge = "tooth"
-    elif(int(context.scene.dropdown_list) == 4):
-        current_edge = "glue"
+
 
 def register():
     bpy.types.Scene.paper_model = bpy.props.PointerProperty(
@@ -902,11 +1234,31 @@ def register():
             ('3', 'Sawtooth Join', ''),
             ('4', 'Glue Tab', ''),
         ),
-        update=myindex
+    update=index_edge
+    )
+    bpy.types.Scene.score_direction = bpy.props.EnumProperty(
+        name="Score axis",
+        items=(
+            ('1', 'x', ''),
+            ('2', 'y', ''),
+            ('3', 'z', ''),
+        ),
+        update=index_score
+    )
+
+    bpy.types.Scene.score_num = bpy.props.IntProperty(
+        name="Number of Scores",
+        default=5,
+        min=1,
+        max=20,
+        update=score_density
     )
     bpy.types.TOPBAR_MT_file_export.append(menu_func_export)
     bpy.types.VIEW3D_MT_edit_mesh.prepend(menu_func_unfold)
 
+    bpy.types.Scene.slicer_settings = bpy.props.PointerProperty(type=Slicer_Settings)
+
 def unregister():
     bpy.types.TOPBAR_MT_file_export.remove(menu_func_export)
     bpy.types.VIEW3D_MT_edit_mesh.remove(menu_func_unfold)
+    bpy.types.Scene.slicer_settings
