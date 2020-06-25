@@ -60,6 +60,8 @@ s = stickers.Stickers()
 from . import svg
 from . import pdf
 from . import mesh
+from . import ribbing
+r = ribbing.Ribbing()
 
 default_priority_effect = {
     'CONVEX': 0.5,
@@ -67,14 +69,32 @@ default_priority_effect = {
     'LENGTH': -0.05
 }
 
-global_paper_sizes = [
-    ('USER', "User defined", "User defined paper size"),
-    ('A4', "A4", "International standard paper size"),
-    ('A3', "A3", "International standard paper size"),
-    ('US_LETTER', "Letter", "North American paper size"),
-    ('US_LEGAL', "Legal", "North American paper size")
-]
 
+class StorageUI:
+    global_paper_sizes = [
+        ('USER', "User defined", "User defined paper size"),
+        ('A4', "A4", "International standard paper size"),
+        ('A3', "A3", "International standard paper size"),
+        ('US_LETTER', "Letter", "North American paper size"),
+        ('US_LEGAL', "Legal", "North American paper size")
+    ]
+
+    global_materials = [
+        ('CARDBOARD', 'Cardboard', ''),
+        ('CHIPBOARD', 'Chipboard', '')
+    ]
+
+    global_materials_thickness = {'CARDBOARD': 3, 'CHIPBOARD': 0.8}
+
+    current_edge = "glue"
+
+    scoredir = "x"
+
+    current_thickness = 3
+
+    current_num_slices = 10
+
+storage = StorageUI()
 
 class UnfoldError(ValueError):
     def mesh_select(self):
@@ -351,7 +371,6 @@ class ClearAllSeams(bpy.types.Operator):
 
 class ApplyScores(bpy.types.Operator):
     current_score_num = 0
-    scoredir = 'x'
     bl_idname = "mesh.apply_scores"
     bl_label = "Apply Scores"
     bl_description = "Apply Scores"
@@ -371,11 +390,11 @@ class ApplyScores(bpy.types.Operator):
         for e in selectedEdges:
             diff = e.verts[0].co - e.verts[1].co
 
-            if(self.scoredir == 'x' and abs(diff.x) > abs(diff.y) and abs(diff.x) > abs(diff.z)):
+            if(storage.scoredir == 'x' and abs(diff.x) > abs(diff.y) and abs(diff.x) > abs(diff.z)):
                 dirlist.append(e)
-            elif(self.scoredir == 'y' and abs(diff.y) > abs(diff.x) and abs(diff.y) > abs(diff.z)):
+            elif(storage.scoredir == 'y' and abs(diff.y) > abs(diff.x) and abs(diff.y) > abs(diff.z)):
                 dirlist.append(e)
-            elif (self.scoredir == 'z' and abs(diff.z) > abs(diff.y) and abs(diff.z) > abs(diff.x)):
+            elif (storage.scoredir == 'z' and abs(diff.z) > abs(diff.y) and abs(diff.z) > abs(diff.x)):
                 dirlist.append(e)
             else:
                 scoreedges.append(e)
@@ -385,7 +404,6 @@ class ApplyScores(bpy.types.Operator):
         return {'FINISHED'}
 
 class ApplyEdgeType(bpy.types.Operator):
-    current_edge = "glue"
     bl_idname = "mesh.apply_edge_type"
     bl_label = "Apply Edge Type"
     bl_description = "Apply Edge Type"
@@ -408,12 +426,12 @@ class ApplyEdgeType(bpy.types.Operator):
         selectedEdgesSeams = [e for e in bm.edges if e.select]
 
         print(len(selectedEdges))
-        print(self.current_edge)
-        if(self.current_edge == "pin"):
+        print(storage.current_edge)
+        if(storage.current_edge == "pin"):
             s.pin_edges.extend(selectedEdges)
-        elif(self.current_edge == "tooth"):
+        elif(storage.current_edge == "tooth"):
             s.sawtooth_edges.extend(selectedEdges)
-        elif(self.current_edge == "glue"):
+        elif(storage.current_edge == "glue"):
             s.glue_edges.extend(selectedEdges)
         print(s.pin_edges)
         print(s.sawtooth_edges)
@@ -536,7 +554,7 @@ class ExportPaperModel(bpy.types.Operator):
         name="Directory", description="Directory of the file", options={'SKIP_SAVE'})
     page_size_preset: bpy.props.EnumProperty(
         name="Page Size", description="Size of the exported document",
-        default='A4', update=page_size_preset_changed, items=global_paper_sizes)
+        default='A4', update=page_size_preset_changed, items=storage.global_paper_sizes)
     output_size_x: bpy.props.FloatProperty(
         name="Page Width", description="Width of the exported document",
         default=0.210, soft_min=0.105, soft_max=0.841, subtype="UNSIGNED", unit="LENGTH")
@@ -1028,7 +1046,7 @@ class PaperModelSettings(bpy.types.PropertyGroup):
         default=False, update=page_size_preset_changed)
     page_size_preset: bpy.props.EnumProperty(
         name="Page Size", description="Maximal size of an island",
-        default='A4', update=page_size_preset_changed, items=global_paper_sizes)
+        default='A4', update=page_size_preset_changed, items=storage.global_paper_sizes)
     output_size_x: bpy.props.FloatProperty(
         name="Width", description="Maximal width of an island",
         default=0.2, soft_min=0.105, soft_max=0.841, subtype="UNSIGNED", unit="LENGTH")
@@ -1038,6 +1056,118 @@ class PaperModelSettings(bpy.types.PropertyGroup):
     scale: bpy.props.FloatProperty(
         name="Scale", description="Divisor of all dimensions when exporting",
         default=1, soft_min=1.0, soft_max=100.0, subtype='FACTOR', precision=1)
+
+
+
+def index_edge (self, context):
+
+    if (int(context.scene.dropdown_list) == 1):
+        storage.current_edge = "auto"
+    elif(int(context.scene.dropdown_list) == 2):
+        storage.current_edge = "pin"
+    elif(int(context.scene.dropdown_list) == 3):
+        storage.current_edge = "tooth"
+    elif(int(context.scene.dropdown_list) == 4):
+        storage.current_edge = "glue"
+
+def index_score(self, context):
+
+    if (int(context.scene.score_direction) == 1):
+        ApplyScores.scoredir = 'x'
+    elif(int(context.scene.score_direction) == 2):
+        ApplyScores.scoredir = 'y'
+    elif(int(context.scene.score_direction) == 3):
+        ApplyScores.scoredir = 'z'
+
+
+def score_density(self, context):
+   ApplyScores.current_score_num = context.scene.score_num
+
+
+
+#************************Slicer Panel
+
+def newrow(layout, s1, root, s2):
+    row = layout.row()
+    row.label(text = s1)
+    row.prop(root, s2)
+
+class OBJECT_OT_Laser_Slicer(bpy.types.Operator):
+    bl_label = "Laser Slicer"
+    bl_idname = "object.laser_slicer"
+
+    def execute(self, context):
+        #create slices distributed across object
+
+        r.settings(storage.current_num_slices, storage.current_thickness)
+        object_to_be_ribbed = bpy.context.active_object
+        r.slice_x(object_to_be_ribbed)
+        return {'FINISHED'}
+
+
+class OBJECT_PT_Laser_Slicer_Panel(bpy.types.Panel):
+    bl_label = "Ribbing Panel"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"
+    bl_context = "objectmode"
+    bl_category = "Ribbing"
+
+    def draw(self, context):
+        scene = context.scene
+        layout = self.layout
+        row = layout.row()
+        row.label(text="Material dimensions:")
+        newrow(layout, "Material:", scene.slicer_settings, 'laser_slicer_material')
+        newrow(layout, "Thickness (mm):", scene.slicer_settings, 'laser_slicer_material_thick')
+        newrow(layout, "Width (mm):", scene.slicer_settings, 'laser_slicer_material_width')
+        newrow(layout, "Height (mm):", scene.slicer_settings, 'laser_slicer_material_height')
+        newrow(layout, "Direction:", scene.slicer_settings, 'direction')
+        newrow(layout, "Number of Slices:", scene.slicer_settings, 'num_slices')
+
+        newrow(layout, "Cut spacing (mm):", scene.slicer_settings, 'laser_slicer_cut_thickness')
+        newrow(layout, "Export file(s):", scene.slicer_settings, 'laser_slicer_ofile')
+
+        if context.active_object and context.active_object.select_get() and context.active_object.type == 'MESH' and context.active_object.data.polygons:
+            row = layout.row()
+            cutdir = scene.slicer_settings.direction
+            num_slices = scene.slicer_settings.num_slices
+
+            # if bpy.data.filepath or context.scene.slicer_settings.laser_slicer_ofile:
+            split = layout.split()
+            col = split.column()
+            col.operator("object.laser_slicer", text="Add Ribbing")
+
+
+def on_update_material(self, context):
+    self.laser_slicer_material_thick = storage.global_materials_thickness[self.laser_slicer_material]
+    storage.current_thickness = storage.global_materials_thickness[self.laser_slicer_material]
+
+def on_update_num(self, context):
+    storage.current_num_slices = self.num_slices
+
+
+class Slicer_Settings(bpy.types.PropertyGroup):
+    direction: bpy.props.StringProperty(name="", description="Axis along which to cut", default='x')
+    num_slices: bpy.props.IntProperty(name="", description="number of slices", min=1, max=500, default=10, update=on_update_num)
+    laser_slicer_material: bpy.props.EnumProperty(name="Material", description="Cutting material", default='CARDBOARD',
+                                        update=on_update_material,
+                                        items=storage.global_materials)
+    laser_slicer_material_thick: bpy.props.FloatProperty(
+        name="", description="Thickness of the cutting material in mm",
+        min=0.1, max=50, default=3)
+    laser_slicer_material_width: bpy.props.FloatProperty(
+        name="", description="Width of the cutting material in mm",
+        min=1, max=5000, default=450)
+    laser_slicer_material_height: bpy.props.FloatProperty(
+        name="", description="Height of the cutting material in mm",
+        min=1, max=5000, default=450)
+
+    laser_slicer_cut_thickness: bpy.props.FloatProperty(
+        name="", description="Expected thickness of the laser cut (mm)",
+        min=0, max=5, default=1)
+    laser_slicer_ofile: bpy.props.StringProperty(name="", description="Location of the exported file", default="",
+                                       subtype="FILE_PATH")
+
 
 
 module_classes = (
@@ -1055,31 +1185,11 @@ module_classes = (
     DATA_PT_paper_model_islands,
     VIEW3D_PT_paper_model_tools,
     VIEW3D_PT_paper_model_settings,
+    OBJECT_PT_Laser_Slicer_Panel,
+    OBJECT_OT_Laser_Slicer,
+    Slicer_Settings
 )
 
-def index_edge (self, context):
-
-    if (int(context.scene.dropdown_list) == 1):
-        ApplyEdgeType.current_edge = "auto"
-    elif(int(context.scene.dropdown_list) == 2):
-        ApplyEdgeType.current_edge = "pin"
-    elif(int(context.scene.dropdown_list) == 3):
-        ApplyEdgeType.current_edge = "tooth"
-    elif(int(context.scene.dropdown_list) == 4):
-        ApplyEdgeType.current_edge = "glue"
-
-def index_score(self, context):
-
-    if (int(context.scene.score_direction) == 1):
-        ApplyScores.scoredir = 'x'
-    elif(int(context.scene.score_direction) == 2):
-        ApplyScores.scoredir = 'y'
-    elif(int(context.scene.score_direction) == 3):
-        ApplyScores.scoredir = 'z'
-
-
-def score_density(self, context):
-   ApplyScores.current_score_num = context.scene.score_num
 
 def register():
     bpy.types.Scene.paper_model = bpy.props.PointerProperty(
@@ -1121,11 +1231,12 @@ def register():
     bpy.types.TOPBAR_MT_file_export.append(menu_func_export)
     bpy.types.VIEW3D_MT_edit_mesh.prepend(menu_func_unfold)
 
+    bpy.types.Scene.slicer_settings = bpy.props.PointerProperty(type=Slicer_Settings)
 
 def unregister():
     bpy.types.TOPBAR_MT_file_export.remove(menu_func_export)
     bpy.types.VIEW3D_MT_edit_mesh.remove(menu_func_unfold)
-
+    bpy.types.Scene.slicer_settings
 
 
 # if __name__ == "__main__":
