@@ -472,8 +472,6 @@ def island_index_changed(self, context):
         bpy.ops.mesh.select_paper_island(operation='REPLACE')
 
 
-class FaceList(bpy.types.PropertyGroup):
-    id: bpy.props.IntProperty(name="Face ID")
 
 class PaperModelStyle(bpy.types.PropertyGroup):
     line_styles = [
@@ -560,7 +558,7 @@ class PaperModelSettings(bpy.types.PropertyGroup):
         default=False, update=page_size_preset_changed)
     page_size_preset: bpy.props.EnumProperty(
         name="Page Size", description="Maximal size of an island",
-        default='A4', update=page_size_preset_changed, items=global_paper_sizes)
+        default='A4', update=page_size_preset_changed, items=storage.global_paper_sizes)
     output_size_x: bpy.props.FloatProperty(
         name="Width", description="Maximal width of an island",
         default=0.2, soft_min=0.105, soft_max=0.841, subtype="UNSIGNED", unit="LENGTH")
@@ -570,6 +568,11 @@ class PaperModelSettings(bpy.types.PropertyGroup):
     scale: bpy.props.FloatProperty(
         name="Scale", description="Divisor of all dimensions when exporting",
         default=1, soft_min=1.0, soft_max=100.0, subtype='FACTOR', precision=1)
+
+
+class FaceList(bpy.types.PropertyGroup):
+
+    id: bpy.props.IntProperty(name="Face ID")
 
 class IslandList(bpy.types.PropertyGroup):
     faces: bpy.props.CollectionProperty(
@@ -913,66 +916,6 @@ class ExportPaperModel(bpy.types.Operator):
             box.prop(self.style, "text_color")
 
 
-def menu_func_export(self, context):
-    self.layout.operator("export_mesh.paper_model", text="Paper Model (.pdf/.svg)")
-
-
-    self.layout.operator("mesh.unfold", text="Unfold")
-def menu_func_unfold(self, context):
-
-
-class SelectIsland(bpy.types.Operator):
-    """Blender Operator: select all faces of the active island"""
-
-    bl_idname = "mesh.select_paper_island"
-    bl_label = "Select Island"
-    bl_description = "Select an island of the paper model net"
-
-    operation: bpy.props.EnumProperty(
-        name="Operation", description="Operation with the current selection",
-        default='ADD', items=[
-            ('ADD', "Add", "Add to current selection"),
-            ('REMOVE', "Remove", "Remove from selection"),
-            ('REPLACE', "Replace", "Select only the ")
-        ])
-
-    @classmethod
-        return context.active_object and context.active_object.type == 'MESH' and context.mode == 'EDIT_MESH'
-    def poll(cls, context):
-
-    def execute(self, context):
-        ob = context.active_object
-        me = ob.data
-        bm = bmesh.from_edit_mesh(me)
-        island = me.paper_island_list[me.paper_island_index]
-        edges = set()
-        faces = {face.id for face in island.faces}
-        verts = set()
-        if self.operation == 'REPLACE':
-            for face in bm.faces:
-                selected = face.index in faces
-                face.select = selected
-                if selected:
-                    edges.update(face.edges)
-                    verts.update(face.verts)
-            for edge in bm.edges:
-                edge.select = edge in edges
-            for vert in bm.verts:
-        else:
-                vert.select = vert in verts
-            selected = (self.operation == 'ADD')
-            for index in faces:
-                face = bm.faces[index]
-                face.select = selected
-                edges.update(face.edges)
-                verts.update(face.verts)
-            for edge in edges:
-                edge.select = any(face.select for face in edge.link_faces)
-            for vert in verts:
-                vert.select = any(edge.select for edge in vert.link_edges)
-        bmesh.update_edit_mesh(me, False, False)
-        return {'FINISHED'}
-
 
 class VIEW3D_MT_paper_model_presets(bpy.types.Menu):
     bl_label = "Paper Model Presets"
@@ -1138,48 +1081,6 @@ def island_index_changed(self, context):
     if context.scene.paper_model.sync_island and SelectIsland.poll(context):
         bpy.ops.mesh.select_paper_island(operation='REPLACE')
 
-class FaceList(bpy.types.PropertyGroup):
-
-    id: bpy.props.IntProperty(name="Face ID")
-
-
-class IslandList(bpy.types.PropertyGroup):
-    faces: bpy.props.CollectionProperty(
-        name="Faces", description="Faces belonging to this island", type=FaceList)
-    label: bpy.props.StringProperty(
-        name="Label", description="Label on this island",
-        default="", update=label_changed)
-    abbreviation: bpy.props.StringProperty(
-        name="Abbreviation", description="Three-letter label to use when there is not enough space",
-        default="", update=island_item_changed)
-    auto_label: bpy.props.BoolProperty(
-        name="Auto Label", description="Generate the label automatically",
-        default=True, update=island_item_changed)
-        name="Auto Abbreviation", description="Generate the abbreviation automatically",
-    auto_abbrev: bpy.props.BoolProperty(
-        default=True, update=island_item_changed)
-
-
-        default=False, update=island_index_changed)
-class PaperModelSettings(bpy.types.PropertyGroup):
-        name="Sync", description="Keep faces of the active island selected",
-    sync_island: bpy.props.BoolProperty(
-    limit_by_page: bpy.props.BoolProperty(
-        name="Limit Island Size", description="Do not create islands larger than given dimensions",
-        default=False, update=page_size_preset_changed)
-    page_size_preset: bpy.props.EnumProperty(
-        name="Page Size", description="Maximal size of an island",
-        default='A4', update=page_size_preset_changed, items=storage.global_paper_sizes)
-    output_size_x: bpy.props.FloatProperty(
-        name="Width", description="Maximal width of an island",
-        default=0.2, soft_min=0.105, soft_max=0.841, subtype="UNSIGNED", unit="LENGTH")
-    output_size_y: bpy.props.FloatProperty(
-        name="Height", description="Maximal height of an island",
-        default=0.29, soft_min=0.148, soft_max=1.189, subtype="UNSIGNED", unit="LENGTH")
-    scale: bpy.props.FloatProperty(
-        name="Scale", description="Divisor of all dimensions when exporting",
-        default=1, soft_min=1.0, soft_max=100.0, subtype='FACTOR', precision=1)
-
 
 
 def index_edge (self, context):
@@ -1288,12 +1189,13 @@ class Slicer_Settings(bpy.types.PropertyGroup):
     laser_slicer_cut_thickness: bpy.props.FloatProperty(
         name="", description="Expected thickness of the laser cut (mm)",
         min=0, max=5, default=1)
-                                       subtype="FILE_PATH")
     laser_slicer_ofile: bpy.props.StringProperty(name="", description="Location of the exported file", default="",
+                                       subtype="FILE_PATH")
 
 
 
 module_classes = (
+    Unfold,
     ExportPaperModel,
     ClearAllSeams,
     ApplyEdgeType,
@@ -1302,6 +1204,7 @@ module_classes = (
     AddPresetPaperModel,
     FaceList,
     IslandList,
+    PaperModelSettings,
     VIEW3D_MT_paper_model_presets,
     DATA_PT_paper_model_islands,
     VIEW3D_PT_paper_model_tools,
@@ -1310,6 +1213,7 @@ module_classes = (
     OBJECT_OT_Laser_Slicer,
     Slicer_Settings
 )
+
 
 
 def register():
