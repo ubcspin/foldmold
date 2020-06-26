@@ -10,6 +10,7 @@ import bl_operators
 from math import pi, ceil, asin, atan2, floor
 from svgpathtools import parse_path, Line, Path, QuadraticBezier, CubicBezier, Arc
 from . import utilities
+import functools
 
 class Stickers:
     def __init__(self):
@@ -71,6 +72,7 @@ class Stickers:
         
         for v in path_vectors:
             vertices.append(self.pathToUVVertices(v))
+        return vertices
 
     def vectorize_paths(self, path):
         paths = parse_path(path)
@@ -514,20 +516,21 @@ class Sticker:
         self.center = (uvedge.va.co + uvedge.vb.co) / 2 # changes if not tile pattern
         self.sticker = self.generate_sticker(uvedge, default_width, index, other, isreversed)
 
-        if (uvedge.type != 'pin' or uvedge.type != 'tooth'):
+        print(uvedge.type)
+        if (uvedge.type != 'pin' and uvedge.type != 'tooth'):
             k = 0.5
 
             sin_a = sin_b = abs(1 - k ** 2) ** 0.5
-            
+
             # len_a is length of the side adjacent to vertex a, len_b likewise
             len_c = min(sticker_width / 0.75 ** 0.5, (edge.length * sin_a) / (sin_a * k + (0.75 ** 0.5) * k))
             len_a = min(sticker_width / sin_a, (edge.length - len_c * k) / k, (edge.length * sin_b) / (sin_a * k + sin_b * k))
             len_b = min(sticker_width / sin_b, (edge.length - len_a * k) / k)
 
             # fix overlaps with the most often neighbour - its sticking target
-            
+
             k = max(k, edge.dot(other_edge) / (edge.length_squared))  # angles between pi/3 and 0
-            
+
             cos_a = cos_b = 0.5 # stub
 
             # Fix tabs for sticking targets with small angles
@@ -560,7 +563,7 @@ class Sticker:
             self.center = (uvedge.va.co + uvedge.vb.co) / 2 + self.rot @ M.Vector((0, self.width * 0.2))
             self.bounds = [v3.co, v4.co, self.center] if v3.co != v4.co else [v3.co, self.center]
 
-        else: 
+        else:
             for i in range(len(self.sticker.geometry)):
                 if not (self.sticker.geometry_co[i][0] == 0.5):
                     vi = UVVertex((second_vertex.co + self.rot @ self.sticker.geometry_co[i]))
@@ -595,13 +598,13 @@ class AbstractStickerConstructor:
         self.geometry, self.geometry_co = self.construct(self.offset_left, midsection_count, self.pattern)
 
     def get_midsection_count(self, width, pattern):
-        if (isinstance(pattern, PourHoleSticker)):
+        if (isinstance(pattern, PourHolePattern)):
             return 1
         else:
             return floor(width / pattern.width)
 
     def get_midsection_width(self, midsection_count, pattern):
-        if (isinstance(pattern, PourHoleSticker)):
+        if (isinstance(pattern, PourHolePattern)):
             return pattern.width
         else:
             return pattern.width * midsection_count
@@ -630,7 +633,7 @@ class SawtoothSticker(AbstractStickerConstructor):
     def __init__(self, uvedge, default_width, index, other: UVEdge, isreversed):
         AbstractStickerConstructor.__init__(self, uvedge, SawtoothPattern(isreversed))
 
-class PinSticker:
+class PinSticker(AbstractStickerConstructor):
     def __init__(self, uvedge, default_width, index, other: UVEdge, isreversed):
         AbstractStickerConstructor.__init__(self, uvedge, PinPattern(isreversed))
 
