@@ -1125,7 +1125,12 @@ class OBJECT_OT_Laser_Slicer(bpy.types.Operator):
 
         r.settings(storage.current_num_slices, storage.current_thickness)
         object_to_be_ribbed = bpy.context.active_object
-        r.slice_x(object_to_be_ribbed)
+        if(bpy.context.scene.slicer_settings.direction == 'x'):
+            r.slice_x(object_to_be_ribbed)
+        elif(bpy.context.scene.slicer_settings.direction == 'y'):
+            r.slice_y(object_to_be_ribbed)
+        elif(bpy.context.scene.slicer_settings.direction == 'z'):
+            r.slice_z(object_to_be_ribbed)
         return {'FINISHED'}
 
 class OBJECT_OT_Conformer(bpy.types.Operator):
