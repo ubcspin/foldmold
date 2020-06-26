@@ -7,6 +7,7 @@ import sys
 import bmesh
 import bpy
 import bl_operators
+import functools
 from math import pi, ceil, asin, atan2, floor
 from svgpathtools import parse_path, Line, Path, QuadraticBezier, CubicBezier, Arc
 from . import utilities
@@ -72,6 +73,8 @@ class Stickers:
         
         for v in path_vectors:
             vertices.append(self.pathToUVVertices(v))
+        return vertices
+
         return vertices
 
     def vectorize_paths(self, path):
@@ -146,42 +149,52 @@ class Stickers:
 
 ## Fundamental stickers
 class AbstractSticker:
-    __slots__ = ("geometry", "width", "filename")
-    def __init__(self, filename, width):
-        self.filename = filename
+    """
+    filenames: array of sticker filenames of different thickness
+    thickness_switch(int): determines which svg filename to use
+    """
+    __slots__ = ("geometry", "width", "thickness_switch", "filenames")
+    def __init__(self, filenames, width, thickness_switch=0):
+        self.filenames = filenames
         self.width = width
-        self.geometry = self.load_geometry(filename)
+        self.thickness_switch = thickness_switch
+        self.geometry = self.load_geometry()
 
-    def load_geometry(self, filename):
+    def load_geometry(self):
         s = Stickers()
+        filename = self.filenames[self.thickness_switch]
         return s.load_geometry(filename)
 
     def getWidth(self):
         return self.width
 
+    def setThicknessSwitch(self, val):
+        self.thickness_switch = val
+
+# TODO: update sticker svg's to stickers with right thickness
 class Tooth(AbstractSticker):
-    def __init__(self):
-        AbstractSticker.__init__(self, "tooth.svg", 0.005)
+    def __init__(self, thickness_switch):
+        AbstractSticker.__init__(self, ["tooth.svg"], 0.005, thickness_switch)
 
 class Gap(AbstractSticker):
-    def __init__(self):
-        AbstractSticker.__init__(self, "gap.svg", 0.003)
+    def __init__(self, thickness_switch):
+        AbstractSticker.__init__(self, ["gap.svg", "gap.svg", "gap.svg"], 0.003, thickness_switch)
 
 class Hole(AbstractSticker):
-    def __init__(self):
-        AbstractSticker.__init__(self, "hole.svg", 0.003)
+    def __init__(self, thickness_switch):
+        AbstractSticker.__init__(self, ["hole0.svg", "hole1.svg", "hole2.svg"], 0.003, thickness_switch)
 
 class PourHoleTile(AbstractSticker):
     def __init__(self):
-        AbstractSticker.__init__(self, "pourhole.svg", 0.003)
+        AbstractSticker.__init__(self, ["pourhole.svg"], 0.003)
 
 class Connector(AbstractSticker):
-    def __init__(self):
-        AbstractSticker.__init__(self, "gap2.svg", 0.003)
+    def __init__(self, thickness_switch):
+        AbstractSticker.__init__(self, ["gap2.svg", "gap2.svg", "gap2.svg"], 0.003, thickness_switch)
 
 class Pin(AbstractSticker):
-    def __init__(self):
-        AbstractSticker.__init__(self, "pin.svg", 0.003)
+    def __init__(self, thickness_switch):
+        AbstractSticker.__init__(self, ["pin0.svg", "pin1.svg", "pin2.svg"], 0.003, thickness_switch)
 
 ## Patterns
 class AbstractPattern:
@@ -205,12 +218,12 @@ class AbstractPattern:
         return vertices
 
 class SawtoothPattern(AbstractPattern):
-    def __init__(self, isreversed):
-        AbstractPattern.__init__(self, isreversed, [Gap(), Tooth()], [Tooth(), Gap()])
+    def __init__(self, thickness_switch, isreversed):
+        AbstractPattern.__init__(self, isreversed, [Gap(thickness_switch), Tooth(thickness_switch)], [Tooth(thickness_switch), Gap(thickness_switch)])
 
 class PinPattern(AbstractPattern):
-    def __init__(self, isreversed):
-        AbstractPattern.__init__(self, isreversed, [Hole(), Connector()], [Pin(), Gap()])
+    def __init__(self, thickness_switch, isreversed):
+        AbstractPattern.__init__(self, isreversed, [Hole(thickness_switch), Connector(thickness_switch)], [Pin(thickness_switch), Gap(thickness_switch)])
 
 class PourHolePattern(AbstractPattern):
     def __init__(self, isreversed):
@@ -249,8 +262,8 @@ class UVEdge:
         self.type = 'auto'
         self.pourhole = None
 
-        print(self.loop.edge.index)
-        print(stobj.pin_edges)
+        # print(self.loop.edge.index)
+        # print(stobj.pin_edges)
         if(self.loop.edge.index in stobj.pin_edges):
             self.type = 'pin'
         elif(self.loop.edge.index in stobj.sawtooth_edges):
@@ -497,7 +510,7 @@ class Sticker:
     """Mark in the document: sticker tab"""
     __slots__ = ('bounds', 'center', 'rot', 'text', 'width', 'vertices', 'sticker')
 
-    def __init__(self, uvedge, default_width, index, other: UVEdge, isreversed=False):
+    def __init__(self, uvedge, default_width, index, other: UVEdge, thickness_switch, isreversed=False):
         """Sticker is directly attached to the given UVEdge"""
         first_vertex, second_vertex = (uvedge.va, uvedge.vb) if not uvedge.uvface.flipped else (uvedge.vb, uvedge.va)
         other_first, other_second = (other.va, other.vb) if not other.uvface.flipped else (other.vb, other.va)
@@ -514,9 +527,9 @@ class Sticker:
         self.vertices = []
         self.bounds = []
         self.center = (uvedge.va.co + uvedge.vb.co) / 2 # changes if not tile pattern
-        self.sticker = self.generate_sticker(uvedge, default_width, index, other, isreversed)
+        self.sticker = self.generate_sticker(uvedge, default_width, index, other, thickness_switch, isreversed)
 
-        print(uvedge.type)
+        # print(uvedge.type)
         if (uvedge.type != 'pin' and uvedge.type != 'tooth'):
             k = 0.5
 
@@ -577,11 +590,11 @@ class Sticker:
             self.bounds.insert(len(self.bounds), self.center)
 
     # Returns: AbstractSticker object
-    def generate_sticker(self, uvedge, default_width, index, other, isreversed):
+    def generate_sticker(self, uvedge, default_width, index, other, thickness_switch, isreversed):
         if (uvedge.type == 'pin'):
-            return PinSticker(uvedge, default_width, index, other, isreversed)
+            return PinSticker(uvedge, default_width, index, other, thickness_switch, isreversed)
         if (uvedge.type == 'tooth'):
-            return SawtoothSticker(uvedge, default_width, index, other, isreversed)
+            return SawtoothSticker(uvedge, default_width, index, other, thickness_switch, isreversed)
         return None
 
 class AbstractStickerConstructor:
@@ -630,12 +643,12 @@ class PourHoleSticker(AbstractStickerConstructor):
         AbstractStickerConstructor.__init__(self, uvedge, PourHolePattern(True))
 
 class SawtoothSticker(AbstractStickerConstructor):
-    def __init__(self, uvedge, default_width, index, other: UVEdge, isreversed):
-        AbstractStickerConstructor.__init__(self, uvedge, SawtoothPattern(isreversed))
+    def __init__(self, uvedge, default_width, index, other: UVEdge, thickness_switch, isreversed):
+        AbstractStickerConstructor.__init__(self, uvedge, SawtoothPattern(thickness_switch, isreversed))
 
 class PinSticker(AbstractStickerConstructor):
-    def __init__(self, uvedge, default_width, index, other: UVEdge, isreversed):
-        AbstractStickerConstructor.__init__(self, uvedge, PinPattern(isreversed))
+    def __init__(self, uvedge, default_width, index, other: UVEdge, thickness_switch, isreversed):
+        AbstractStickerConstructor.__init__(self, uvedge, PinPattern(thickness_switch, isreversed))
 
 
 class PourHole:

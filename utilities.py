@@ -19,7 +19,7 @@ class Utilities:
         chars = set(name)
         mistakable = set("69NZMWpbqd")
         rotatable = set("80oOxXIl").union(mistakable)
-        print("is_upsidedown_wrong worked")
+        # print("is_upsidedown_wrong worked")
         return chars.issubset(rotatable) and not chars.isdisjoint(mistakable)
 
     def pairs(self, sequence):
@@ -94,7 +94,3 @@ class Utilities:
         image.pixels = [1, 1, 1, alpha] * (width * height)
         image.file_format = 'PNG'
         return image
-
-
-    def hello(self, hi):
-        print("Hi w %s" % hi)

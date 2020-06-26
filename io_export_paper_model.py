@@ -52,6 +52,13 @@ class StorageUI:
 
     current_thickness = 3
     current_num_slices = 10
+
+    def setThickness(self, thickness):
+        self.current_thickness = thickness
+
+    def getThickness(self):
+        return self.current_thickness
+
 storage = StorageUI()
 
 
@@ -221,17 +228,17 @@ class ApplyEdgeType(bpy.types.Operator):
         selectedEdges = [e.index for e in bm.edges if e.select]
         selectedEdgesSeams = [e for e in bm.edges if e.select]
 
-        print(len(selectedEdges))
-        print(storage.current_edge)
+        # print(len(selectedEdges))
+        # print(storage.current_edge)
         if(storage.current_edge == "pin"):
             s.pin_edges.extend(selectedEdges)
         elif(storage.current_edge == "tooth"):
             s.sawtooth_edges.extend(selectedEdges)
         elif(storage.current_edge == "glue"):
             s.glue_edges.extend(selectedEdges)
-        print(s.pin_edges)
-        print(s.sawtooth_edges)
-        print(s.glue_edges)
+        # print(s.pin_edges)
+        # print(s.sawtooth_edges)
+        # print(s.glue_edges)
 
         for edge in selectedEdgesSeams:
             edge.seam = True
@@ -760,6 +767,8 @@ class ExportPaperModel(bpy.types.Operator):
         self.object = context.active_object
         global s 
         self.unfolder = unfold.Unfolder(self.object, s)
+        # print("thickness in storage:", storage.getThickness())
+        self.unfolder.setThickness(storage.getThickness())
         cage_size = M.Vector((sce.paper_model.output_size_x, sce.paper_model.output_size_y))
         self.unfolder.prepare(cage_size, scale=sce.unit_settings.scale_length / self.scale,
                               limit_by_page=sce.paper_model.limit_by_page)
@@ -791,6 +800,7 @@ class ExportPaperModel(bpy.types.Operator):
         try:
             if self.object.data.paper_island_list:
                 self.unfolder.copy_island_names(self.object.data.paper_island_list)
+            self.unfolder.setThickness(storage.getThickness())
             self.unfolder.save(self.properties)
             self.report({'INFO'}, "Saved a {}-page document".format(len(self.unfolder.mesh.pages)))
             return {'FINISHED'}
@@ -1123,7 +1133,7 @@ class OBJECT_OT_Laser_Slicer(bpy.types.Operator):
     def execute(self, context):
         #create slices distributed across object
 
-        r.settings(storage.current_num_slices, storage.current_thickness)
+        r.settings(storage.current_num_slices, storage.getThickness())
         object_to_be_ribbed = bpy.context.active_object
         if(bpy.context.scene.slicer_settings.direction == 'x'):
             r.slice_x(object_to_be_ribbed)
@@ -1179,7 +1189,7 @@ class OBJECT_PT_Laser_Slicer_Panel(bpy.types.Panel):
 
 def on_update_material(self, context):
     self.laser_slicer_material_thick = storage.global_materials_thickness[self.laser_slicer_material]
-    storage.current_thickness = storage.global_materials_thickness[self.laser_slicer_material]
+    storage.setThickness(storage.global_materials_thickness[self.laser_slicer_material])
 
 def on_update_num(self, context):
     storage.current_num_slices = self.num_slices
@@ -1188,7 +1198,7 @@ def on_update_num(self, context):
 class Slicer_Settings(bpy.types.PropertyGroup):
     direction: bpy.props.StringProperty(name="", description="Axis along which to cut", default='x')
     num_slices: bpy.props.IntProperty(name="", description="number of slices", min=1, max=500, default=10, update=on_update_num)
-    laser_slicer_material: bpy.props.EnumProperty(name="Material", description="Cutting material", default='CARDBOARD',
+    laser_slicer_material: bpy.props.EnumProperty(name="", description="Cutting material", default='CARDBOARD',
                                         update=on_update_material,
                                         items=storage.global_materials)
     laser_slicer_material_thick: bpy.props.FloatProperty(

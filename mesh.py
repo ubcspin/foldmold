@@ -22,6 +22,11 @@ class Mesh:
             if edge.main_faces:
                 edge.calculate_angle()
         self.copy_freestyle_marks()
+        self.thickness_switch = 0
+
+    def setThicknessSwitch(self, thickness_switch):
+        # print("thickness_switch set to:", thickness_switch)
+        self.thickness_switch = thickness_switch
 
     def delete_uvmap(self):
         self.data.loops.layers.uv.remove(self.looptex) if self.looptex else None
@@ -186,8 +191,8 @@ class Mesh:
             face = uvedge.uvface.face
             return face.calc_area() / face.calc_perimeter()
 
-        def add_sticker(uvedge, index, target_uvedge, isreversed=False):
-            uvedge.sticker = stickers.Sticker(uvedge, default_width, index, target_uvedge, isreversed)
+        def add_sticker(uvedge, index, target_uvedge, thickness_switch, isreversed=False):
+            uvedge.sticker = stickers.Sticker(uvedge, default_width, index, target_uvedge, thickness_switch, isreversed)
             uvedge.uvface.island.add_marker(uvedge.sticker)
 
         def is_index_obvious(uvedge, target):
@@ -204,7 +209,7 @@ class Mesh:
                 if uvedge_priority(target) < uvedge_priority(source):
                     target, source = source, target
                 target_island = target.uvface.island
-                add_sticker(target, index, source, True)
+                add_sticker(target, index, source, self.thickness_switch, True)
 
         for edge in self.edges.values():
             index = None
@@ -221,7 +226,7 @@ class Mesh:
                             index += "."
                         # target_island.add_marker(Arrow(target, default_width, index))
                         break
-                add_sticker(source, index, target, False)
+                add_sticker(source, index, target, self.thickness_switch, False)
 
 
         islands = self.islands

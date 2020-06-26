@@ -58,6 +58,17 @@ class Unfolder:
                 self.mesh.islands[i].label = island_list[j].label
                 self.mesh.islands[i].abbreviation = island_list[j].abbreviation
 
+    def setThickness(self, thickness):
+        # TODO: change this to reflect correct thickness range
+        if thickness >= 2: 
+            # print("is this called")
+            self.mesh.setThicknessSwitch(2)
+        elif (thickness < 2) and (thickness >= 1):
+            self.mesh.setThicknessSwitch(1)
+        elif thickness < 1:
+            self.mesh.setThicknessSwitch(0)
+
+
     def save(self, properties):
         """Export the document"""
         # Note about scale: input is directly in blender length
