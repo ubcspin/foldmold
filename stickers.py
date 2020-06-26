@@ -185,8 +185,8 @@ class Hole(AbstractSticker):
         AbstractSticker.__init__(self, ["hole0.svg", "hole1.svg", "hole2.svg"], 0.003, thickness_switch)
 
 class PourHoleTile(AbstractSticker):
-    def __init__(self, thickness_switch):
-        AbstractSticker.__init__(self, ["pourhole.svg"], 0.003, thickness_switch)
+    def __init__(self):
+        AbstractSticker.__init__(self, ["pourhole.svg"], 0.003)
 
 class Connector(AbstractSticker):
     def __init__(self, thickness_switch):
@@ -226,8 +226,8 @@ class PinPattern(AbstractPattern):
         AbstractPattern.__init__(self, isreversed, [Hole(thickness_switch), Connector(thickness_switch)], [Pin(thickness_switch), Gap(thickness_switch)])
 
 class PourHolePattern(AbstractPattern):
-    def __init__(self, thickness_switch, isreversed):
-        AbstractPattern.__init__(self, isreversed, [PourHoleTile(thickness_switch)], [PourHoleTile(thickness_switch)])
+    def __init__(self, isreversed):
+        AbstractPattern.__init__(self, isreversed, [PourHoleTile()], [PourHoleTile()])
 
 class UVVertex:
         """Vertex in 2D"""
@@ -640,7 +640,7 @@ class AbstractStickerConstructor:
 
 class PourHoleSticker(AbstractStickerConstructor):
     def __init__(self, uvedge):
-        AbstractStickerConstructor.__init__(self, uvedge, PourHolePattern(0, True))
+        AbstractStickerConstructor.__init__(self, uvedge, PourHolePattern(True))
 
 class SawtoothSticker(AbstractStickerConstructor):
     def __init__(self, uvedge, default_width, index, other: UVEdge, thickness_switch, isreversed):
