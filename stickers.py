@@ -7,6 +7,7 @@ import sys
 import bmesh
 import bpy
 import bl_operators
+import functools
 from math import pi, ceil, asin, atan2, floor
 from svgpathtools import parse_path, Line, Path, QuadraticBezier, CubicBezier, Arc
 from . import utilities
@@ -71,6 +72,8 @@ class Stickers:
         
         for v in path_vectors:
             vertices.append(self.pathToUVVertices(v))
+
+        return vertices
 
     def vectorize_paths(self, path):
         paths = parse_path(path)
@@ -144,42 +147,51 @@ class Stickers:
 
 ## Fundamental stickers
 class AbstractSticker:
-    __slots__ = ("geometry", "width", "filename")
-    def __init__(self, filename, width):
-        self.filename = filename
+    """
+    filenames: array of sticker filenames of different thickness
+    thickness_switch(int): determines which svg filename to use
+    """
+    __slots__ = ("geometry", "width", "thickness_switch", "filenames")
+    def __init__(self, filenames, width, thickness_switch=0):
+        self.filenames = filenames
         self.width = width
-        self.geometry = self.load_geometry(filename)
+        self.thickness_switch = thickness_switch
+        self.geometry = self.load_geometry()
 
-    def load_geometry(self, filename):
+    def load_geometry(self):
         s = Stickers()
+        filename = self.filenames[self.thickness_switch]
         return s.load_geometry(filename)
 
     def getWidth(self):
         return self.width
 
+    def setThicknessSwitch(self, val):
+        self.thickness_switch = val
+
 class Tooth(AbstractSticker):
     def __init__(self):
-        AbstractSticker.__init__(self, "tooth.svg", 0.005)
+        AbstractSticker.__init__(self, ["tooth.svg"], 0.005)
 
 class Gap(AbstractSticker):
     def __init__(self):
-        AbstractSticker.__init__(self, "gap.svg", 0.003)
+        AbstractSticker.__init__(self, ["gap.svg"], 0.003)
 
 class Hole(AbstractSticker):
     def __init__(self):
-        AbstractSticker.__init__(self, "hole.svg", 0.003)
+        AbstractSticker.__init__(self, ["hole0.svg", "hole1.svg", "hole2.svg"], 0.003)
 
 class PourHoleTile(AbstractSticker):
     def __init__(self):
-        AbstractSticker.__init__(self, "pourhole.svg", 0.003)
+        AbstractSticker.__init__(self, ["pourhole.svg"], 0.003)
 
 class Connector(AbstractSticker):
     def __init__(self):
-        AbstractSticker.__init__(self, "gap2.svg", 0.003)
+        AbstractSticker.__init__(self, ["gap2.svg"], 0.003)
 
 class Pin(AbstractSticker):
     def __init__(self):
-        AbstractSticker.__init__(self, "pin.svg", 0.003)
+        AbstractSticker.__init__(self, ["pin0.svg", "pin1.svg", "pin2.svg"], 0.003)
 
 ## Patterns
 class AbstractPattern:
