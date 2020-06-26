@@ -171,6 +171,7 @@ class AbstractSticker:
     def setThicknessSwitch(self, val):
         self.thickness_switch = val
 
+# TODO: update sticker svg's to stickers with right thickness
 class Tooth(AbstractSticker):
     def __init__(self, thickness_switch):
         AbstractSticker.__init__(self, ["tooth.svg"], 0.005, thickness_switch)

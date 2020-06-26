@@ -63,7 +63,7 @@ class Unfolder:
         if thickness >= 2: 
             # print("is this called")
             self.mesh.setThicknessSwitch(2)
-        elif thickness < 2 && thickness >= 1:
+        elif (thickness < 2) and (thickness >= 1):
             self.mesh.setThicknessSwitch(1)
         elif thickness < 1:
             self.mesh.setThicknessSwitch(0)

@@ -25,7 +25,7 @@ class Mesh:
         self.thickness_switch = 0
 
     def setThicknessSwitch(self, thickness_switch):
-        print("thickness_switch set to:", thickness_switch)
+        # print("thickness_switch set to:", thickness_switch)
         self.thickness_switch = thickness_switch
 
     def delete_uvmap(self):
