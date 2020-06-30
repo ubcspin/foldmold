@@ -10,8 +10,16 @@ import bl_operators
 import functools
 from math import pi, ceil, asin, atan2, floor
 from svgpathtools import parse_path, Line, Path, QuadraticBezier, CubicBezier, Arc
-from . import utilities
 import functools
+
+
+if __package__ is None or __package__ == '':
+    # uses current directory visibility
+    import utilities
+else:
+    # uses current package visibility
+    from . import utilities
+
 
 class Stickers:
     def __init__(self):

@@ -1,6 +1,13 @@
 import mathutils as M
 import os.path as os_path
-from . import stickers
+
+if __package__ is None or __package__ == '':
+    # uses current directory visibility
+    import stickers
+else:
+    # uses current package visibility
+    from . import stickers
+
 from itertools import chain, repeat, product, combinations
 
 class SVG:
