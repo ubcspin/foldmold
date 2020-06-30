@@ -69,6 +69,12 @@ cd /Applications/Blender.app/Contents/Resources/2.82/python/bin
 ./python3.7m -m pip install svglib
 ```
 
+Once that's run, you can run this from anywhere for any new package:
+
+```
+/Applications/Blender.app/Contents/Resources/2.82/python/bin/python3.7m -m pip install <packagename>
+```
+
 ### Trouble shooting
 I ran into segmentation fault with 
 ```
