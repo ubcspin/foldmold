@@ -67,6 +67,7 @@ where XX.X should be replaced by the version number. In my setup it looks like:
 cd /Applications/Blender.app/Contents/Resources/2.82/python/bin
 ./python3.7m -m ensurepip
 ./python3.7m -m pip install svglib
+./python3.7m -m pip install svgpathtools
 ```
 
 Once that's run, you can run this from anywhere for any new package:
