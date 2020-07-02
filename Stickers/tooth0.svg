@@ -5,7 +5,7 @@
 <style type="text/css">
 	.st0{fill:none;stroke:#FF0000;stroke-width:2;stroke-miterlimit:10;}
 </style>
-<polyline class="st0" points="400,184 400,400 0,400 0,184 "/>
-<path class="st0" d="M0,0c14.2,0,25.7,41.2,25.7,92S14.2,184,0,184"/>
-<path class="st0" d="M400,0c-13.1,0-23.7,41.2-23.7,92s10.6,92,23.7,92"/>
+<polyline class="st0" points="400,43.6 400,400 0,400 0,43.6 "/>
+<path class="st0" d="M0,0c13.7,0,24.7,9.6,24.7,21.5S13.7,43,0,43"/>
+<path class="st0" d="M400,0c-13.7,0-24.7,9.6-24.7,21.5S386.3,43,400,43"/>
 </svg>

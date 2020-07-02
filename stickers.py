@@ -137,7 +137,7 @@ class Stickers:
 
         return v1
 
-    def pathToUVVertices(v):
+    def pathToUVVertices(self, v):
         return UVVertex(M.Vector((v.real, v.imag)) * 0.00001)
 
     def load_geometry(self, filename):
@@ -182,7 +182,7 @@ class AbstractSticker:
 # TODO: update sticker svg's to stickers with right thickness
 class Tooth(AbstractSticker):
     def __init__(self, thickness_switch):
-        AbstractSticker.__init__(self, ["tooth.svg"], 0.005, thickness_switch)
+        AbstractSticker.__init__(self, ["tooth0.svg", "tooth1.svg", "tooth2.svg"], 0.005, thickness_switch)
 
 class Gap(AbstractSticker):
     def __init__(self, thickness_switch):
