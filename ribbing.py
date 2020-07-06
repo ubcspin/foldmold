@@ -15,8 +15,11 @@ class Ribbing:
             mesh.name = "Ribbed-"+mesh.name
         for i in range(self.num_slices):
             spot = (mesh.location.x - mesh.dimensions.x/2) + i*(mesh.dimensions.x)/(self.num_slices )
-            bpy.ops.mesh.primitive_cube_add(location=(spot, mesh.location.y, mesh.location.z))
-            bpy.context.active_object.scale = (self.thickness/1000, mesh.dimensions.y, mesh.dimensions.z)
+            bpy.ops.mesh.primitive_cube_add(location=(spot, mesh.location.y, mesh.location.z + mesh.dimensions.z/2))
+            bpy.context.active_object.scale = (self.thickness/1000, mesh.dimensions.y, mesh.dimensions.z/2)
+            bpy.context.active_object.name = "Slice"
+            bpy.ops.mesh.primitive_cube_add(location=(spot, mesh.location.y, mesh.location.z -mesh.dimensions.z/2))
+            bpy.context.active_object.scale = (self.thickness/1000, mesh.dimensions.y, mesh.dimensions.z/2)
             bpy.context.active_object.name = "Slice"
 
     def slice_y(self, mesh):
@@ -24,8 +27,11 @@ class Ribbing:
             mesh.name = "Ribbed-"+mesh.name
         for i in range(self.num_slices):
             spot = (mesh.location.y - mesh.dimensions.y/2) + i*(mesh.dimensions.y)/(self.num_slices)
-            bpy.ops.mesh.primitive_cube_add(location=(mesh.location.x, spot, mesh.location.z))
-            bpy.context.active_object.scale = (mesh.dimensions.x, self.thickness/1000, mesh.dimensions.z)
+            bpy.ops.mesh.primitive_cube_add(location=(mesh.location.x+mesh.dimensions.x/2, spot, mesh.location.z))
+            bpy.context.active_object.scale = (mesh.dimensions.x/2, self.thickness/1000, mesh.dimensions.z)
+            bpy.context.active_object.name = "Slice"
+            bpy.ops.mesh.primitive_cube_add(location=(mesh.location.x-mesh.dimensions.x/2, spot, mesh.location.z))
+            bpy.context.active_object.scale = (mesh.dimensions.x/2, self.thickness/1000, mesh.dimensions.z)
             bpy.context.active_object.name = "Slice"
 
     def slice_z(self, mesh):
@@ -33,9 +39,13 @@ class Ribbing:
             mesh.name = "Ribbed-"+mesh.name
         for i in range(self.num_slices):
             spot = (mesh.location.z - mesh.dimensions.z/2) + i*(mesh.dimensions.z)/(self.num_slices)
-            bpy.ops.mesh.primitive_cube_add(location=(mesh.location.x, mesh.location.y, spot))
-            bpy.context.active_object.scale = (mesh.dimensions.x, mesh.dimensions.y, self.thickness/1000)
+            bpy.ops.mesh.primitive_cube_add(location=(mesh.location.x, mesh.location.y+mesh.dimensions.y/2, spot))
+            bpy.context.active_object.scale = (mesh.dimensions.x, mesh.dimensions.y/2, self.thickness/1000)
             bpy.context.active_object.name = "Slice"
+            bpy.ops.mesh.primitive_cube_add(location=(mesh.location.x, mesh.location.y-mesh.dimensions.y/2, spot))
+            bpy.context.active_object.scale = (mesh.dimensions.x, mesh.dimensions.y/2, self.thickness/1000)
+            bpy.context.active_object.name = "Slice"
+
 
     def conform(self):
         slices = [obj for obj in bpy.context.scene.objects if obj.name.startswith("Slice")]
