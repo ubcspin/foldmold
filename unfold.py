@@ -1,9 +1,17 @@
 import bpy
 import bmesh
-from . import mesh
-from . import svg
-from . import pdf
 import mathutils as M
+
+if __package__ is None or __package__ == '':
+    # uses current directory visibility
+    import mesh
+    import svg
+    import pdf
+else:
+    # uses current package visibility
+    from . import mesh
+    from . import svg
+    from . import pdf
 
 default_priority_effect = {
     'CONVEX': 0.5,

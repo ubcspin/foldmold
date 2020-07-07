@@ -10,8 +10,16 @@ import bl_operators
 import functools
 from math import pi, ceil, asin, atan2, floor
 from svgpathtools import parse_path, Line, Path, QuadraticBezier, CubicBezier, Arc
-from . import utilities
 import functools
+
+
+if __package__ is None or __package__ == '':
+    # uses current directory visibility
+    import utilities
+else:
+    # uses current package visibility
+    from . import utilities
+
 
 class Stickers:
     def __init__(self):
@@ -41,12 +49,10 @@ class Stickers:
 
         for element in svg_root:
             if element.tag == ns + 'path':
-                print("path")
                 path = element.get('d')
                 vertices += map(self.pathToUVVertices, self.vectorize_paths(path))
 
             elif element.tag == ns + 'polyline':
-                print("polyline")
                 points = element.get('points')
                 points += " 0.5,0.5"
                 vertices += map(self.makeUVVertices, self.vectorize_polylines(points))

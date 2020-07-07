@@ -673,6 +673,32 @@ class PaperModelStyle(bpy.types.PropertyGroup):
         default=(0.0, 0.0, 0.0, 1.0), min=0, max=1, subtype='COLOR', size=4)
 
 
+class AddThickness(bpy.types.Operator):
+    """Blender Operator: save the selected object's net and optionally bake its texture"""
+
+    bl_idname = "object.thickness"
+    bl_label = "Add Thickness"
+    bl_description = "Add Material Thickness to object"
+
+
+    @classmethod
+    def poll(cls, context):
+        return context.active_object and context.active_object.type == 'MESH'
+
+    def execute(self, context):
+        obj = context.active_object
+        # print(obj.name)
+        bpy.ops.object.modifier_add(type='SOLIDIFY')
+        bpy.context.object.modifiers["Solidify"].thickness = storage.getThickness()
+        bpy.context.object.modifiers["Solidify"].offset = 1
+        bpy.context.object.modifiers["Solidify"].use_rim = True
+        bpy.context.object.modifiers["Solidify"].use_rim_only = True
+        bpy.ops.object.modifier_apply(apply_as='DATA', modifier="Solidify")
+
+        return {'FINISHED'}
+
+
+
 
 class ExportPaperModel(bpy.types.Operator):
     """Blender Operator: save the selected object's net and optionally bake its texture"""
@@ -1135,7 +1161,12 @@ class OBJECT_OT_Laser_Slicer(bpy.types.Operator):
 
         r.settings(storage.current_num_slices, storage.getThickness())
         object_to_be_ribbed = bpy.context.active_object
-        r.slice_x(object_to_be_ribbed)
+        if(bpy.context.scene.slicer_settings.direction == 'x'):
+            r.slice_x(object_to_be_ribbed)
+        elif(bpy.context.scene.slicer_settings.direction == 'y'):
+            r.slice_y(object_to_be_ribbed)
+        elif(bpy.context.scene.slicer_settings.direction == 'z'):
+            r.slice_z(object_to_be_ribbed)
         return {'FINISHED'}
 
 class OBJECT_OT_Conformer(bpy.types.Operator):
@@ -1182,6 +1213,9 @@ class OBJECT_PT_Laser_Slicer_Panel(bpy.types.Panel):
             row = layout.row()
             row.operator("object.conformer", text="Conform Ribbing")
 
+        row = layout.row()
+        row.operator("object.thickness", text="Add Thickness")
+
 def on_update_material(self, context):
     self.laser_slicer_material_thick = storage.global_materials_thickness[self.laser_slicer_material]
     storage.setThickness(storage.global_materials_thickness[self.laser_slicer_material])
@@ -1216,6 +1250,7 @@ class Slicer_Settings(bpy.types.PropertyGroup):
 
 module_classes = (
     Unfold,
+    AddThickness,
     ExportPaperModel,
     ClearAllSeams,
     ApplyEdgeType,

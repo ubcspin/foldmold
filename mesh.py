@@ -1,8 +1,17 @@
 import mathutils as M
 import bpy
-from . import stickers
-from . import unfold
-from . import utilities
+if __package__ is None or __package__ == '':
+    # uses current directory visibility
+    import stickers
+    import unfold
+    import utilities
+else:
+    # uses current package visibility
+    from . import stickers
+    from . import unfold
+    from . import utilities
+
+
 from itertools import chain, repeat, product, combinations
 u = utilities.Utilities()
 
@@ -437,6 +446,10 @@ class Mesh:
         for uv in ignored_uvs:
             uv *= -1
 
+# class AbstractSweepLine:
+#     def __init__(self):
+#         self.children = list()    
+
 
 
 def join(uvedge_a, uvedge_b, size_limit=None, epsilon=1e-6):
@@ -444,12 +457,51 @@ def join(uvedge_a, uvedge_b, size_limit=None, epsilon=1e-6):
     Try to join other island on given edge
     Returns False if they would overlap
     """
-
     class Intersection(Exception):
         pass
 
     class GeometryError(Exception):
         pass
+
+    class QuickSweepline:
+        """Efficient sweepline based on binary search, checking neighbors only"""
+
+        def __init__(self):
+            self.children = list()
+
+        def add(self, item, cmp=is_below):
+            low, high = 0, len(self.children)
+            while low < high:
+                mid = (low + high) // 2
+                if cmp(self.children[mid], item):
+                    low = mid + 1
+                else:
+                    high = mid
+            self.children.insert(low, item)
+
+        def remove(self, item, cmp=is_below):
+            index = self.children.index(item)
+            self.children.pop(index)
+            if index > 0 and index < len(self.children):
+                # check for intersection
+                if cmp(self.children[index], self.children[index - 1]):
+                    raise GeometryError
+
+    class BruteSweepline:
+        """Safe sweepline which checks all its members pairwise"""
+
+        def __init__(self):
+            self.children = set()
+
+        def add(self, item, cmp=is_below):
+            for child in self.children:
+                if child.min is not item.min and child.max is not item.max:
+                    cmp(item, child, False)
+            self.children.add(item)
+
+        def remove(self, item):
+            self.children.remove(item)
+
 
     def is_below(self, other, correct_geometry=True):
         if self is other:
@@ -490,45 +542,6 @@ def join(uvedge_a, uvedge_b, size_limit=None, epsilon=1e-6):
         if self.min.tup == other.min.tup or self.max.tup == other.max.tup:
             return cross_a2 > cross_b2
         raise Intersection
-
-    class QuickSweepline:
-        """Efficient sweepline based on binary search, checking neighbors only"""
-
-        def __init__(self):
-            self.children = list()
-
-        def add(self, item, cmp=is_below):
-            low, high = 0, len(self.children)
-            while low < high:
-                mid = (low + high) // 2
-                if cmp(self.children[mid], item):
-                    low = mid + 1
-                else:
-                    high = mid
-            self.children.insert(low, item)
-
-        def remove(self, item, cmp=is_below):
-            index = self.children.index(item)
-            self.children.pop(index)
-            if index > 0 and index < len(self.children):
-                # check for intersection
-                if cmp(self.children[index], self.children[index - 1]):
-                    raise GeometryError
-
-    class BruteSweepline:
-        """Safe sweepline which checks all its members pairwise"""
-
-        def __init__(self):
-            self.children = set()
-
-        def add(self, item, cmp=is_below):
-            for child in self.children:
-                if child.min is not item.min and child.max is not item.max:
-                    cmp(item, child, False)
-            self.children.add(item)
-
-        def remove(self, item):
-            self.children.remove(item)
 
     def sweep(sweepline, segments):
         """Sweep across the segments and raise an exception if necessary"""
