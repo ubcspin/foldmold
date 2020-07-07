@@ -1,5 +1,5 @@
 import svglib
-from lxml import etree
+import xml.etree.ElementTree as ET
 import logging
 import mathutils as M
 import os.path as os_path
@@ -22,10 +22,8 @@ class Stickers:
 
     """ returns svg root of svg at path"""
     def load_svg(self, path):
-        logger = logging.getLogger(__name__)
-        parser = etree.XMLParser(remove_comments=True, recover=True)
         try:
-            doc = etree.parse(path, parser=parser)
+            doc = ET.parse(path)
             svg_root = doc.getroot()
         except Exception as exc:
             logger.error("Failed to load input file! (%s)" % exc)
@@ -34,46 +32,29 @@ class Stickers:
 
     """ returns an array of UVVertices converted from the svg file at path"""
     def svg2uv(self, path):
-        ns = {"u": "http://www.w3.org/2000/svg"}
+        ns = "{http://www.w3.org/2000/svg}"
         vertices = []
         svg_root = self.load_svg(path)
         if svg_root is None:
             print("SVG import blowed up, no root!")
             return
 
-        polylines = svg_root.findall("u:polyline", ns)
-        lines = svg_root.findall("u:line", ns)
-        rectangles = svg_root.findall("u:rect", ns)
-        paths = svg_root.findall("u:path", ns)
+        for element in svg_root:
+            if element.tag == ns + 'path':
+                print("path")
+                path = element.get('d')
+                vertices += map(self.pathToUVVertices, self.vectorize_paths(path))
 
-        # Make Polyline Vectors
-        polyline_vectors = []
+            elif element.tag == ns + 'polyline':
+                print("polyline")
+                points = element.get('points')
+                points += " 0.5,0.5"
+                vertices += map(self.makeUVVertices, self.vectorize_polylines(points))
 
-        for p in polylines:
-            points = p.attrib['points']
-            points += " 0.5,0.5"
-            polyline_vectors += self.vectorize_polylines(points)
-            # polyline_vectors += vectorize_polylines("600,600") #delimiter
-        for v in polyline_vectors:
-            vertices.append(self.makeUVVertices(v))
-
-        # Make Lines
-        for l in lines:
-            vertices += self.vectorize_lines(l)
-
-        # Make Rectangles
-        for r in rectangles:
-            vertices += self.vectorize_rects(r)
-
-        # Make Path vectors
-        path_vectors = []
-        for p in paths:
-            path = p.attrib['d']
-            path_vectors += self.vectorize_paths(path)
-        
-        for v in path_vectors:
-            vertices.append(self.pathToUVVertices(v))
-        return vertices
+            elif element.tag == ns + 'line':
+                vertices += self.vectorize_lines(l)
+            elif element.tag == ns + 'rect':
+                vertices += self.vectorize_rects(r)
 
         return vertices
 
@@ -89,6 +70,7 @@ class Stickers:
                 for i in range(NUM_SAMPLES):
                     uv_vertices.append(subpath.point(i/(NUM_SAMPLES-1)))
             uv_vertices.append(subpath.end)
+            uv_vertices.append(0.5 + 0.5j)
         return uv_vertices
 
 
@@ -129,8 +111,11 @@ class Stickers:
 
         return v1
 
-    def pathToUVVertices(v):
-        return UVVertex(M.Vector((v.real, v.imag)) * 0.00001)
+    def pathToUVVertices(self, v):
+        if not (v.real == 0.5 and v.imag == 0.5):
+            return UVVertex(M.Vector((v.real, v.imag)) * 0.00001)
+        else:
+            return UVVertex(M.Vector((v.real, v.imag)))
 
     def load_geometry(self, filename):
         path_to_stickers_mac = "/Applications/Blender.app/Contents/Resources/2.82/scripts/addons/foldmold/Stickers/"
@@ -174,7 +159,7 @@ class AbstractSticker:
 # TODO: update sticker svg's to stickers with right thickness
 class Tooth(AbstractSticker):
     def __init__(self, thickness_switch):
-        AbstractSticker.__init__(self, ["tooth.svg"], 0.005, thickness_switch)
+        AbstractSticker.__init__(self, ["tooth0.svg", "tooth1.svg", "tooth2.svg"], 0.005, thickness_switch)
 
 class Gap(AbstractSticker):
     def __init__(self, thickness_switch):
@@ -192,7 +177,7 @@ class Connector(AbstractSticker):
     def __init__(self, thickness_switch):
         AbstractSticker.__init__(self, ["gap2.svg", "gap2.svg", "gap2.svg"], 0.003, thickness_switch)
 
-class Pin(AbstractSticker):
+class Pin(AbstractSticker):     
     def __init__(self, thickness_switch):
         AbstractSticker.__init__(self, ["pin0.svg", "pin1.svg", "pin2.svg"], 0.003, thickness_switch)
 

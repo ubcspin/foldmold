@@ -31,7 +31,7 @@ class SVG:
         lists = list()
         curr = list()
         for point in seq:
-            print(point.co)
+            # print(point.co)
             if(point.co.x == 0.5):
                 lists.append(curr)
                 curr = list()
