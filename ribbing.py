@@ -59,6 +59,7 @@ class Ribbing:
             objs = bpy.data.objects
             objs.remove(objs["bottombottom"], do_unlink=True)
 
+
     def slice_y(self, mesh):
         if not mesh.name.startswith("Ribbed"):
             mesh.name = "Ribbed-"+mesh.name
@@ -243,5 +244,25 @@ class Ribbing:
             diff.double_threshold = 0
             bpy.ops.object.modifier_apply(apply_as='DATA', modifier="Boolean-c"+str(i))
             # print(slice.name, diff.object.name)
+
+
+            selectedEdges = [e for e in bpy.context.active_object.data.edges if e.select]
+            for edge in selectedEdges:
+                edge.use_seam = True
+
+            bpy.ops.object.mode_set(mode='EDIT')
+
+            bpy.ops.mesh.remove_doubles()
+            bpy.ops.mesh.select_all(action='DESELECT')
+            bpy.ops.mesh.select_non_manifold()
+
+            bpy.ops.object.mode_set(mode='OBJECT')
+            selectedEdges = [e for e in bpy.context.active_object.data.edges if e.select]
+            for edge in selectedEdges:
+                edge.use_seam = False
+
+
+
+
             i+=1
             bpy.ops.object.select_all(action='DESELECT')
