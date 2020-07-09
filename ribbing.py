@@ -128,15 +128,100 @@ class Ribbing:
     def slice_z(self, mesh):
         if not mesh.name.startswith("Ribbed"):
             mesh.name = "Ribbed-"+mesh.name
-        for i in range(self.num_slices):
-            spot = (mesh.location.z - mesh.dimensions.z/2) + i*(mesh.dimensions.z)/(self.num_slices)
-            bpy.ops.mesh.primitive_cube_add(location=(mesh.location.x, mesh.location.y+mesh.dimensions.y/2, spot))
-            bpy.context.active_object.scale = (mesh.dimensions.x, mesh.dimensions.y/2, self.thickness/1000)
-            bpy.context.active_object.name = "Slice"
-            bpy.ops.mesh.primitive_cube_add(location=(mesh.location.x, mesh.location.y-mesh.dimensions.y/2, spot))
-            bpy.context.active_object.scale = (mesh.dimensions.x, mesh.dimensions.y/2, self.thickness/1000)
-            bpy.context.active_object.name = "Slice"
 
+        #top left
+        bpy.ops.mesh.primitive_cube_add(location=(mesh.location.x, mesh.location.y+mesh.dimensions.y*0.8/2, mesh.dimensions.z*0.8))
+        bpy.context.active_object.scale = (mesh.dimensions.x, mesh.dimensions.y*0.8/2, self.thickness/1000)
+        bpy.context.active_object.name = "Slice"
+        mainobj = bpy.context.active_object
+
+        bpy.ops.mesh.primitive_cube_add(location=(mesh.location.x, mesh.location.y+mesh.dimensions.y*0.9, mesh.dimensions.z*0.8))
+        bpy.context.active_object.scale = (mesh.dimensions.x*0.8, mesh.dimensions.y*0.2/2, self.thickness/1000)
+        bpy.context.active_object.name = "leftleft"
+
+        lefts = [obj for obj in bpy.context.scene.objects if obj.name.startswith("leftleft")]
+        bpy.context.view_layer.objects.active = mainobj
+        diff = mainobj.modifiers.new(name="Boolean", type="BOOLEAN")
+        diff.object = lefts[0]
+        diff.operation = "UNION"
+        diff.double_threshold = 0
+        bpy.ops.object.modifier_apply(apply_as='DATA', modifier="Boolean")
+        bpy.ops.object.select_all(action='DESELECT')
+
+        objs = bpy.data.objects
+        objs.remove(objs["leftleft"], do_unlink=True)
+
+        #top right
+        bpy.ops.mesh.primitive_cube_add(location=(mesh.location.x, mesh.location.y-mesh.dimensions.y*0.8/2, mesh.dimensions.z*0.8))
+        bpy.context.active_object.scale = (mesh.dimensions.x, mesh.dimensions.y*0.8/2, self.thickness/1000)
+        bpy.context.active_object.name = "Slice"
+        mainobj = bpy.context.active_object
+
+        bpy.ops.mesh.primitive_cube_add(location=(mesh.location.x, mesh.location.y-mesh.dimensions.y*0.9, mesh.dimensions.z*0.8))
+        bpy.context.active_object.scale = (mesh.dimensions.x*0.8, mesh.dimensions.y*0.2/2, self.thickness/1000)
+        bpy.context.active_object.name = "rightright"
+
+        rights = [obj for obj in bpy.context.scene.objects if obj.name.startswith("rightright")]
+        bpy.context.view_layer.objects.active = rights[0]
+        diff = rights[0].modifiers.new(name="Boolean", type="BOOLEAN")
+        diff.object = mainobj
+        diff.operation = "UNION"
+        diff.double_threshold = 0
+        bpy.ops.object.modifier_apply(apply_as='DATA', modifier="Boolean")
+        bpy.ops.object.select_all(action='DESELECT')
+
+        objs = bpy.data.objects
+        objs.remove(mainobj, do_unlink=True)
+        rights[0].name = "Slice"
+
+        # bottom left
+        bpy.ops.mesh.primitive_cube_add(
+            location=(mesh.location.x, mesh.location.y + mesh.dimensions.y * 0.8 / 2, mesh.location.z -mesh.dimensions.z*0.8))
+        bpy.context.active_object.scale = (mesh.dimensions.x, mesh.dimensions.y * 0.8 / 2, self.thickness / 1000)
+        bpy.context.active_object.name = "Slice"
+        mainobj = bpy.context.active_object
+
+        bpy.ops.mesh.primitive_cube_add(
+            location=(mesh.location.x, mesh.location.y + mesh.dimensions.y * 0.9, mesh.location.z -mesh.dimensions.z*0.8))
+        bpy.context.active_object.scale = (mesh.dimensions.x * 0.8, mesh.dimensions.y * 0.2 / 2, self.thickness / 1000)
+        bpy.context.active_object.name = "leftleft"
+
+        lefts = [obj for obj in bpy.context.scene.objects if obj.name.startswith("leftleft")]
+        bpy.context.view_layer.objects.active = mainobj
+        diff = mainobj.modifiers.new(name="Boolean", type="BOOLEAN")
+        diff.object = lefts[0]
+        diff.operation = "UNION"
+        diff.double_threshold = 0
+        bpy.ops.object.modifier_apply(apply_as='DATA', modifier="Boolean")
+        bpy.ops.object.select_all(action='DESELECT')
+
+        objs = bpy.data.objects
+        objs.remove(objs["leftleft"], do_unlink=True)
+
+        # bottom right
+        bpy.ops.mesh.primitive_cube_add(
+            location=(mesh.location.x, mesh.location.y - mesh.dimensions.y * 0.8 / 2, mesh.location.z -mesh.dimensions.z*0.8))
+        bpy.context.active_object.scale = (mesh.dimensions.x, mesh.dimensions.y * 0.8 / 2, self.thickness / 1000)
+        bpy.context.active_object.name = "Slice"
+        mainobj = bpy.context.active_object
+
+        bpy.ops.mesh.primitive_cube_add(
+            location=(mesh.location.x, mesh.location.y - mesh.dimensions.y * 0.9, mesh.location.z -mesh.dimensions.z*0.8))
+        bpy.context.active_object.scale = (mesh.dimensions.x * 0.8, mesh.dimensions.y * 0.2 / 2, self.thickness / 1000)
+        bpy.context.active_object.name = "rightright"
+
+        rights = [obj for obj in bpy.context.scene.objects if obj.name.startswith("rightright")]
+        bpy.context.view_layer.objects.active = rights[0]
+        diff = rights[0].modifiers.new(name="Boolean", type="BOOLEAN")
+        diff.object = mainobj
+        diff.operation = "UNION"
+        diff.double_threshold = 0
+        bpy.ops.object.modifier_apply(apply_as='DATA', modifier="Boolean")
+        bpy.ops.object.select_all(action='DESELECT')
+
+        objs = bpy.data.objects
+        objs.remove(mainobj, do_unlink=True)
+        rights[0].name = "Slice"
 
     def conform(self):
         slices = [obj for obj in bpy.context.scene.objects if obj.name.startswith("Slice")]
