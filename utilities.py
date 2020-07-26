@@ -1,6 +1,7 @@
 import mathutils as M
 from math import pi, ceil, asin, atan2, floor
 import bpy
+from re import compile as re_compile
 
 class Utilities:
 

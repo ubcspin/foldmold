@@ -1,5 +1,6 @@
 import bpy
 import bmesh
+import mathutils as M
 
 class Ribbing:
     def __init__(self):
@@ -18,7 +19,7 @@ class Ribbing:
             spot = (mesh.location.x - mesh.dimensions.x/2) + i*(mesh.dimensions.x)/(self.num_slices )
             bpy.ops.mesh.primitive_cube_add(location=(spot, mesh.location.y, mesh.location.z + mesh.dimensions.z*0.8/2))
             bpy.context.active_object.scale = (self.thickness/1000, mesh.dimensions.y, mesh.dimensions.z*0.8/2)
-            bpy.context.active_object.name = "Slice"
+            bpy.context.active_object.name = "Slice-x"
             mainobj = bpy.context.active_object
 
             bpy.ops.mesh.primitive_cube_add(location=(spot, mesh.location.y, mesh.location.z + mesh.dimensions.z*0.9))
@@ -40,7 +41,7 @@ class Ribbing:
             #bottom
             bpy.ops.mesh.primitive_cube_add(location=(spot, mesh.location.y, mesh.location.z -mesh.dimensions.z*0.8/2))
             bpy.context.active_object.scale = (self.thickness/1000, mesh.dimensions.y, mesh.dimensions.z*0.8/2)
-            bpy.context.active_object.name = "Slice"
+            bpy.context.active_object.name = "Slice-x"
             mainobj = bpy.context.active_object
 
             bpy.ops.mesh.primitive_cube_add(location=(spot, mesh.location.y, mesh.location.z -mesh.dimensions.z*0.9))
@@ -69,7 +70,7 @@ class Ribbing:
             spot = (mesh.location.y - mesh.dimensions.y/2) + i*(mesh.dimensions.y)/(self.num_slices)
             bpy.ops.mesh.primitive_cube_add(location=(mesh.location.x+mesh.dimensions.x*0.8/2, spot, mesh.location.z))
             bpy.context.active_object.scale = (mesh.dimensions.x*0.8/2, self.thickness/1000, mesh.dimensions.z)
-            bpy.context.active_object.name = "Slice"
+            bpy.context.active_object.name = "Slice-y"
             mainobj = bpy.context.active_object
 
             bpy.ops.mesh.primitive_cube_add(location=(mesh.location.x+mesh.dimensions.x*0.9, spot, mesh.location.z))
@@ -99,13 +100,13 @@ class Ribbing:
 
             objs = bpy.data.objects
             objs.remove(mainobj, do_unlink=True)
-            lefts[0].name = "Slice"
+            lefts[0].name = "Slice-y"
 
 
             #right
             bpy.ops.mesh.primitive_cube_add(location=(mesh.location.x-mesh.dimensions.x*0.8/2, spot, mesh.location.z))
             bpy.context.active_object.scale = (mesh.dimensions.x*0.8/2, self.thickness/1000, mesh.dimensions.z)
-            bpy.context.active_object.name = "Slice"
+            bpy.context.active_object.name = "Slice-y"
             mainobj = bpy.context.active_object
 
             bpy.ops.mesh.primitive_cube_add(location=(mesh.location.x-mesh.dimensions.x*0.9, spot, mesh.location.z))
@@ -123,7 +124,7 @@ class Ribbing:
 
             objs = bpy.data.objects
             objs.remove(mainobj, do_unlink=True)
-            rights[0].name = "Slice"
+            rights[0].name = "Slice-y"
 
 
     def slice_z(self, mesh):
@@ -133,7 +134,7 @@ class Ribbing:
         #top left
         bpy.ops.mesh.primitive_cube_add(location=(mesh.location.x, mesh.location.y+mesh.dimensions.y*0.8/2, mesh.dimensions.z*0.8))
         bpy.context.active_object.scale = (mesh.dimensions.x, mesh.dimensions.y*0.8/2, self.thickness/1000)
-        bpy.context.active_object.name = "Slice"
+        bpy.context.active_object.name = "Slice-z"
         mainobj = bpy.context.active_object
 
         bpy.ops.mesh.primitive_cube_add(location=(mesh.location.x, mesh.location.y+mesh.dimensions.y*0.9, mesh.dimensions.z*0.8))
@@ -155,7 +156,7 @@ class Ribbing:
         #top right
         bpy.ops.mesh.primitive_cube_add(location=(mesh.location.x, mesh.location.y-mesh.dimensions.y*0.8/2, mesh.dimensions.z*0.8))
         bpy.context.active_object.scale = (mesh.dimensions.x, mesh.dimensions.y*0.8/2, self.thickness/1000)
-        bpy.context.active_object.name = "Slice"
+        bpy.context.active_object.name = "Slice-z"
         mainobj = bpy.context.active_object
 
         bpy.ops.mesh.primitive_cube_add(location=(mesh.location.x, mesh.location.y-mesh.dimensions.y*0.9, mesh.dimensions.z*0.8))
@@ -173,13 +174,13 @@ class Ribbing:
 
         objs = bpy.data.objects
         objs.remove(mainobj, do_unlink=True)
-        rights[0].name = "Slice"
+        rights[0].name = "Slice-z"
 
         # bottom left
         bpy.ops.mesh.primitive_cube_add(
             location=(mesh.location.x, mesh.location.y + mesh.dimensions.y * 0.8 / 2, mesh.location.z -mesh.dimensions.z*0.8))
         bpy.context.active_object.scale = (mesh.dimensions.x, mesh.dimensions.y * 0.8 / 2, self.thickness / 1000)
-        bpy.context.active_object.name = "Slice"
+        bpy.context.active_object.name = "Slice-z"
         mainobj = bpy.context.active_object
 
         bpy.ops.mesh.primitive_cube_add(
@@ -203,7 +204,7 @@ class Ribbing:
         bpy.ops.mesh.primitive_cube_add(
             location=(mesh.location.x, mesh.location.y - mesh.dimensions.y * 0.8 / 2, mesh.location.z -mesh.dimensions.z*0.8))
         bpy.context.active_object.scale = (mesh.dimensions.x, mesh.dimensions.y * 0.8 / 2, self.thickness / 1000)
-        bpy.context.active_object.name = "Slice"
+        bpy.context.active_object.name = "Slice-z"
         mainobj = bpy.context.active_object
 
         bpy.ops.mesh.primitive_cube_add(
@@ -222,7 +223,7 @@ class Ribbing:
 
         objs = bpy.data.objects
         objs.remove(mainobj, do_unlink=True)
-        rights[0].name = "Slice"
+        rights[0].name = "Slice-z"
 
     def conform(self):
         slices = [obj for obj in bpy.context.scene.objects if obj.name.startswith("Slice")]
@@ -246,6 +247,11 @@ class Ribbing:
             # print(slice.name, diff.object.name)
 
 
+            bpy.context.view_layer.objects.active = slice
+            bpy.ops.object.mode_set(mode='EDIT')
+            bpy.ops.mesh.select_all(action='SELECT')
+            bpy.ops.object.mode_set(mode='OBJECT')
+
             selectedEdges = [e for e in bpy.context.active_object.data.edges if e.select]
             for edge in selectedEdges:
                 edge.use_seam = True
@@ -261,8 +267,73 @@ class Ribbing:
             for edge in selectedEdges:
                 edge.use_seam = False
 
-
-
-
             i+=1
             bpy.ops.object.select_all(action='DESELECT')
+
+            bpy.ops.object.mode_set(mode='EDIT')
+            bm = bmesh.from_edit_mesh(slice.data)
+
+            for vert in bm.verts:
+                vert.co.x = round(vert.co.x)
+            bmesh.update_edit_mesh(slice.data)
+
+
+            front_vector = M.Vector((1, 0, 0))
+            frontestfaces = []
+            frontestverts = []
+            # frontestuvface = None
+            for face in bm.faces:
+                # print(face.normal)
+                if (face.normal.x == front_vector.x and abs(round(face.normal.y, 3)) == front_vector.y and abs(
+                        round(face.normal.z, 3)) == front_vector.z):
+                    frontestfaces.append(face)
+                    # frontestuvface = uvface
+                    face.select = True
+                    for vert in face.verts:
+                        frontestverts.append(vert)
+
+            bmesh.ops.delete(bm, geom=frontestfaces, context="FACES_ONLY")
+
+            bmesh.update_edit_mesh(slice.data)
+            bpy.ops.object.mode_set(mode='OBJECT')
+            bpy.ops.object.select_all(action='DESELECT')
+
+            bpy.ops.object.mode_set(mode='EDIT')
+
+            bm = bmesh.from_edit_mesh(slice.data)
+
+            frontestverts = []
+            for vert in bm.verts:
+                if(vert.co.x == 1):
+                    frontestverts.append(vert)
+                    vert.select
+                # elif(vert.co.x < 0):
+                #     print("BAD:"+str(vert.co))
+
+            # for vert in frontestverts:
+            #     print("X:"+str(vert.co))
+            #     vert.select
+
+
+            useless_edges =[]
+            for edge in bm.edges:
+                if edge.select and not edge.seam:
+                    useless_edges.append(edge)
+            bmesh.ops.delete(bm, geom=useless_edges, context="EDGES")
+            bmesh.update_edit_mesh(slice.data)
+
+            bpy.ops.object.mode_set(mode='OBJECT')
+            bpy.ops.object.mode_set(mode='EDIT')
+
+            bm = bmesh.from_edit_mesh(slice.data)
+
+            face_verts = [edge for edge in bm.edges if edge.select]
+
+            bmesh.ops.contextual_create(bm, geom=face_verts)
+            bmesh.update_edit_mesh(slice.data)
+
+            bpy.ops.object.mode_set(mode='OBJECT')
+
+
+
+

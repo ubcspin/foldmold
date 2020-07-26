@@ -50,6 +50,13 @@ class Unfolder:
         self.mesh.enumerate_islands()
         self.mesh.save_uv()
 
+    def prepare_ribs(self, cage_size=None, priority_effect=default_priority_effect, scale=1, limit_by_page=False):
+        """Create the islands of the net"""
+        self.mesh.generate_cuts_ribs(cage_size / scale if limit_by_page and cage_size else None, priority_effect)
+        self.mesh.finalize_islands(cage_size or M.Vector((1, 1)))
+        self.mesh.enumerate_islands()
+        self.mesh.save_uv()
+
     def copy_island_names(self, island_list):
         """Copy island label and abbreviation from the best matching island in the list"""
         orig_islands = [{face.id for face in item.faces} for item in island_list]
@@ -77,7 +84,7 @@ class Unfolder:
             self.mesh.setThicknessSwitch(0)
 
 
-    def save(self, properties):
+    def save(self, properties, name = ''):
         """Export the document"""
         # Note about scale: input is directly in blender length
         # Mesh.scale_islands multiplies everything by a user-defined ratio
@@ -85,7 +92,7 @@ class Unfolder:
         Exporter = svg.SVG if properties.file_format == 'SVG' else pdf.PDF
         filepath = properties.filepath
         extension = properties.file_format.lower()
-        filepath = bpy.path.ensure_ext(filepath, "." + extension)
+        filepath = bpy.path.ensure_ext(filepath+name, "." + extension)
         # page size in meters
         page_size = M.Vector((properties.output_size_x, properties.output_size_y))
         # printable area size in meters
@@ -95,7 +102,8 @@ class Unfolder:
 
         # after this call, all dimensions will be in meters
         self.mesh.scale_islands(unit_scale / properties.scale)
-        if properties.do_create_stickers:
+        print(name)
+        if properties.do_create_stickers and name == '':
             self.mesh.generate_stickers(properties.sticker_width, properties.do_create_numbers)
         # elif properties.do_create_numbers:
         #     self.mesh.generate_numbers_alone(properties.sticker_width)
