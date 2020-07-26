@@ -432,14 +432,14 @@ class Edge:
         #
         # for uv in self.uvedges:
         #     uv.type = self.type
-
-        if(faces[0].smooth and faces[1].smooth):
-            self.is_kerf = True
-
-            for uv in self.uvedges:
-                uv.is_kerf = True
-        else:
-            self.is_kerf = False
+        #
+        # if(faces[0].smooth and faces[1].smooth):
+        #     self.is_kerf = True
+        #
+        #     for uv in self.uvedges:
+        #         uv.is_kerf = True
+        # else:
+        #     self.is_kerf = False
 
     def choose_main_faces(self):
         """Choose two main faces that might get connected in an island"""
