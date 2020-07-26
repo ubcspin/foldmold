@@ -102,7 +102,6 @@ class Mesh:
             self.edges[loop.edge].uvedges.append(uvedge)
         # check for edges that are cut permanently
         edges = [edge for edge in self.edges.values() if not edge.force_cut and edge.main_faces]
-
         if edges:
             average_length = sum(edge.vector.length for edge in edges) / len(edges)
             for edge in edges:
@@ -486,7 +485,6 @@ class Mesh:
             return [stop for stop, distance in zip(stops, chain([quantile], distances)) if distance >= quantile]
 
         if any(island.bounding_box.x > cage_size.x or island.bounding_box.y > cage_size.y for island in self.islands):
-            # print(cage_size)
             raise unfold.UnfoldError(
                 "An island is too big to fit onto page of the given size. "
                 "Either downscale the model or find and split that island manually.\n"
@@ -585,6 +583,46 @@ class Mesh:
 
 
 def join(uvedge_a, uvedge_b, size_limit=None, epsilon=1e-6):
+    def is_below(self, other, correct_geometry=True):
+        if self is other:
+            return False
+        if self.top < other.bottom:
+            return True
+        if other.top < self.bottom:
+            return False
+        if self.max.tup <= other.min.tup:
+            return True
+        if other.max.tup <= self.min.tup:
+            return False
+        self_vector = self.max.co - self.min.co
+        min_to_min = other.min.co - self.min.co
+        cross_b1 = self_vector.cross(min_to_min)
+        cross_b2 = self_vector.cross(other.max.co - self.min.co)
+        if cross_b2 < cross_b1:
+            cross_b1, cross_b2 = cross_b2, cross_b1
+        if cross_b2 > 0 and (cross_b1 > 0 or (cross_b1 == 0 and not self.is_uvface_upwards())):
+            return True
+        if cross_b1 < 0 and (cross_b2 < 0 or (cross_b2 == 0 and self.is_uvface_upwards())):
+            return False
+        other_vector = other.max.co - other.min.co
+        cross_a1 = other_vector.cross(-min_to_min)
+        cross_a2 = other_vector.cross(self.max.co - other.min.co)
+        if cross_a2 < cross_a1:
+            cross_a1, cross_a2 = cross_a2, cross_a1
+        if cross_a2 > 0 and (cross_a1 > 0 or (cross_a1 == 0 and not other.is_uvface_upwards())):
+            return False
+        if cross_a1 < 0 and (cross_a2 < 0 or (cross_a2 == 0 and other.is_uvface_upwards())):
+            return True
+        if cross_a1 == cross_b1 == cross_a2 == cross_b2 == 0:
+            if correct_geometry:
+                raise GeometryError
+            elif self.is_uvface_upwards() == other.is_uvface_upwards():
+                raise Intersection
+            return False
+        if self.min.tup == other.min.tup or self.max.tup == other.max.tup:
+            return cross_a2 > cross_b2
+        raise Intersection
+
     """
     Try to join other island on given edge
     Returns False if they would overlap

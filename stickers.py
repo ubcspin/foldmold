@@ -264,6 +264,8 @@ class UVEdge:
         else:
             self.type = 'auto'
 
+        self.update()
+
     def update(self):
         """Update data if UVVertices have moved"""
         self.min, self.max = (self.va, self.vb) if (self.va.tup < self.vb.tup) else (self.vb, self.va)
