@@ -50,9 +50,9 @@ class Unfolder:
         self.mesh.enumerate_islands()
         self.mesh.save_uv()
 
-    def prepare_ribs(self, cage_size=None, priority_effect=default_priority_effect, scale=1, limit_by_page=False):
+    def prepare_ribs(self, direction, cage_size=None, priority_effect=default_priority_effect, scale=1, limit_by_page=False):
         """Create the islands of the net"""
-        self.mesh.generate_cuts_ribs(cage_size / scale if limit_by_page and cage_size else None, priority_effect)
+        self.mesh.generate_cuts_ribs(cage_size / scale if limit_by_page and cage_size else None, priority_effect, direction)
         self.mesh.finalize_islands(cage_size or M.Vector((1, 1)))
         self.mesh.enumerate_islands()
         self.mesh.save_uv()

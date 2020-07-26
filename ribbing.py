@@ -258,78 +258,161 @@ class Ribbing:
 
             bpy.ops.object.mode_set(mode='EDIT')
 
+            bm = bmesh.from_edit_mesh(slice.data)
+
             bpy.ops.mesh.remove_doubles()
             bpy.ops.mesh.select_all(action='DESELECT')
-            bpy.ops.mesh.select_non_manifold()
 
-            bpy.ops.object.mode_set(mode='OBJECT')
-            selectedEdges = [e for e in bpy.context.active_object.data.edges if e.select]
-            for edge in selectedEdges:
-                edge.use_seam = False
+            def z_pos(vert):
+                return vert.co.z
 
-            i+=1
-            bpy.ops.object.select_all(action='DESELECT')
+            if(slice.name.startswith("Slice-x")):
+                bpy.ops.mesh.select_non_manifold()
 
-            bpy.ops.object.mode_set(mode='EDIT')
-            bm = bmesh.from_edit_mesh(slice.data)
+                bpy.ops.object.mode_set(mode='OBJECT')
+                selectedEdges = [e for e in bpy.context.active_object.data.edges if e.select]
+                for edge in selectedEdges:
+                    edge.use_seam = False
 
-            for vert in bm.verts:
-                vert.co.x = round(vert.co.x)
-            bmesh.update_edit_mesh(slice.data)
+                i+=1
+                bpy.ops.object.select_all(action='DESELECT')
+
+                bpy.ops.object.mode_set(mode='EDIT')
+                bm = bmesh.from_edit_mesh(slice.data)
+
+                for vert in bm.verts:
+                    vert.co.x = round(vert.co.x)
+                bmesh.update_edit_mesh(slice.data)
 
 
-            front_vector = M.Vector((1, 0, 0))
-            frontestfaces = []
-            frontestverts = []
-            # frontestuvface = None
-            for face in bm.faces:
-                # print(face.normal)
-                if (face.normal.x == front_vector.x and abs(round(face.normal.y, 3)) == front_vector.y and abs(
-                        round(face.normal.z, 3)) == front_vector.z):
-                    frontestfaces.append(face)
-                    # frontestuvface = uvface
-                    face.select = True
-                    for vert in face.verts:
+                front_vector = M.Vector((1, 0, 0))
+                frontestfaces = []
+                frontestverts = []
+                # frontestuvface = None
+                for face in bm.faces:
+                    # print(face.normal)
+                    if (face.normal.x == front_vector.x and abs(round(face.normal.y, 3)) == front_vector.y and abs(
+                            round(face.normal.z, 3)) == front_vector.z):
+                        frontestfaces.append(face)
+                        # frontestuvface = uvface
+                        face.select = True
+                        for vert in face.verts:
+                            frontestverts.append(vert)
+
+                bmesh.ops.delete(bm, geom=frontestfaces, context="FACES_ONLY")
+
+                bmesh.update_edit_mesh(slice.data)
+                bpy.ops.object.mode_set(mode='OBJECT')
+                bpy.ops.object.select_all(action='DESELECT')
+
+                bpy.ops.object.mode_set(mode='EDIT')
+
+                bm = bmesh.from_edit_mesh(slice.data)
+                frontestverts = []
+                for vert in bm.verts:
+                    if(vert.co.x == 1):
                         frontestverts.append(vert)
+                        vert.select
 
-            bmesh.ops.delete(bm, geom=frontestfaces, context="FACES_ONLY")
+                useless_edges =[]
+                for edge in bm.edges:
+                    if edge.select and not edge.seam:
+                        useless_edges.append(edge)
+                bmesh.ops.delete(bm, geom=useless_edges, context="EDGES")
+                bmesh.update_edit_mesh(slice.data)
 
-            bmesh.update_edit_mesh(slice.data)
-            bpy.ops.object.mode_set(mode='OBJECT')
-            bpy.ops.object.select_all(action='DESELECT')
+                bpy.ops.object.mode_set(mode='OBJECT')
+                bpy.ops.object.mode_set(mode='EDIT')
 
-            bpy.ops.object.mode_set(mode='EDIT')
+                bm = bmesh.from_edit_mesh(slice.data)
 
-            bm = bmesh.from_edit_mesh(slice.data)
+                face_verts = [edge for edge in bm.edges if edge.select]
 
-            frontestverts = []
-            for vert in bm.verts:
-                if(vert.co.x == 1):
-                    frontestverts.append(vert)
-                    vert.select
-                # elif(vert.co.x < 0):
-                #     print("BAD:"+str(vert.co))
+                bmesh.ops.contextual_create(bm, geom=face_verts)
+            elif(slice.name.startswith("Slice-y")):
+                useless_edges = []
+                for edge in bm.edges:
+                    if(len(edge.link_faces) < 2):
+                        edge.select = True
+                        useless_edges.append(edge)
+                bmesh.ops.delete(bm, geom=useless_edges, context="EDGES")
+                selectedVerts = []
+                for vert in bm.verts:
+                    if(vert.select):
+                        selectedVerts.append(vert)
+                selectedVerts.sort(key=z_pos)
+                bmesh.ops.contextual_create(bm, geom=selectedVerts[:4])
+                bmesh.ops.contextual_create(bm, geom=selectedVerts[4:])
 
-            # for vert in frontestverts:
-            #     print("X:"+str(vert.co))
-            #     vert.select
+                bmesh.ops.contextual_create(bm, geom=bm.edges)
+                bmesh.update_edit_mesh(slice.data)
+
+                for edge in bm.edges:
+                    edge.seam = True
+            elif(slice.name.startswith("Slice-z")):
+                bpy.ops.mesh.select_non_manifold()
+
+                bpy.ops.object.mode_set(mode='OBJECT')
+                selectedEdges = [e for e in bpy.context.active_object.data.edges if e.select]
+                for edge in selectedEdges:
+                    edge.use_seam = False
+
+                i+=1
+                bpy.ops.object.select_all(action='DESELECT')
+
+                bpy.ops.object.mode_set(mode='EDIT')
+                bm = bmesh.from_edit_mesh(slice.data)
+
+                for vert in bm.verts:
+                    vert.co.z = round(vert.co.z)
+                bmesh.update_edit_mesh(slice.data)
 
 
-            useless_edges =[]
-            for edge in bm.edges:
-                if edge.select and not edge.seam:
-                    useless_edges.append(edge)
-            bmesh.ops.delete(bm, geom=useless_edges, context="EDGES")
-            bmesh.update_edit_mesh(slice.data)
+                front_vector = M.Vector((0, 0, 1))
+                frontestfaces = []
+                frontestverts = []
+                # frontestuvface = None
+                for face in bm.faces:
+                    # print(face.normal)
+                    if (abs(round(face.normal.x,3)) == front_vector.x and abs(round(face.normal.y, 3)) == front_vector.y and face.normal.z == front_vector.z):
+                        frontestfaces.append(face)
+                        # frontestuvface = uvface
+                        face.select = True
+                        for vert in face.verts:
+                            frontestverts.append(vert)
 
-            bpy.ops.object.mode_set(mode='OBJECT')
-            bpy.ops.object.mode_set(mode='EDIT')
+                bmesh.ops.delete(bm, geom=frontestfaces, context="FACES_ONLY")
 
-            bm = bmesh.from_edit_mesh(slice.data)
+                bmesh.update_edit_mesh(slice.data)
+                bpy.ops.object.mode_set(mode='OBJECT')
+                bpy.ops.object.select_all(action='DESELECT')
 
-            face_verts = [edge for edge in bm.edges if edge.select]
+                bpy.ops.object.mode_set(mode='EDIT')
 
-            bmesh.ops.contextual_create(bm, geom=face_verts)
+                bm = bmesh.from_edit_mesh(slice.data)
+                frontestverts = []
+                for vert in bm.verts:
+                    if(vert.co.z == 1):
+                        frontestverts.append(vert)
+                        vert.select
+
+                useless_edges =[]
+                for edge in bm.edges:
+                    if edge.select and not edge.seam:
+                        useless_edges.append(edge)
+                bmesh.ops.delete(bm, geom=useless_edges, context="EDGES")
+                bmesh.update_edit_mesh(slice.data)
+
+                bpy.ops.object.mode_set(mode='OBJECT')
+                bpy.ops.object.mode_set(mode='EDIT')
+
+                bm = bmesh.from_edit_mesh(slice.data)
+
+                face_verts = [edge for edge in bm.edges if edge.select]
+
+                bmesh.ops.contextual_create(bm, geom=face_verts)
+
+
             bmesh.update_edit_mesh(slice.data)
 
             bpy.ops.object.mode_set(mode='OBJECT')

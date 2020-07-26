@@ -192,7 +192,7 @@ class Mesh:
 
 
 
-    def generate_cuts_ribs(self, page_size, priority_effect):
+    def generate_cuts_ribs(self, page_size, priority_effect, direction):
         """Cut the mesh so that it can be unfolded to a flat net."""
         normal_matrix = self.matrix.inverted().transposed()
         initial_islands = {stickers.Island(self, face, self.matrix, normal_matrix, self.s) for face in self.data.faces}
@@ -202,22 +202,30 @@ class Mesh:
         #     self.edges[loop.edge].uvedges.append(uvedge)
 
 
+        if(direction == 'x'):
+            front_vector = M.Vector((1, 0, 0))
+            frontestfaces = []
+            for face, uvface in initial_uvfaces.items():
+                # print(face.normal)
+                if(face.normal.x == front_vector.x and abs(round(face.normal.y, 3)) == front_vector.y and abs(round(face.normal.z, 3)) == front_vector.z):
+                    frontestfaces.append(face)
+        elif(direction == 'y'):
+            front_vector = M.Vector((0, 1, 0))
+            frontestfaces = []
+            for face, uvface in initial_uvfaces.items():
+                # print(face.normal)
+                if(abs(round(face.normal.x, 3)) == front_vector.x and face.normal.y == front_vector.y and abs(round(face.normal.z, 3)) == front_vector.z):
+                    frontestfaces.append(face)
+        elif(direction == 'z'):
+            front_vector = M.Vector((0, 0, 1))
+            frontestfaces = []
+            for face, uvface in initial_uvfaces.items():
+                # print(face.normal)
+                if(abs(round(face.normal.x, 3)) == front_vector.x and abs(round(face.normal.y)) == front_vector.y and face.normal.z == front_vector.z):
+                    frontestfaces.append(face)
 
-        front_vector = M.Vector((1, 0, 0))
-        frontestfaces = []
-        # frontestuvface = None
-        for face, uvface in initial_uvfaces.items():
-            # print(face.normal)
-            if(face.normal.x == front_vector.x and abs(round(face.normal.y, 3)) == front_vector.y and abs(round(face.normal.z, 3)) == front_vector.z):
-                frontestfaces.append(face)
-                # frontestuvface = uvface
-            else:
-                print(face.normal)
 
-            # if((face.normal.x == frontestfaces[0].normal.x) and (abs(face.normal.y) == abs(frontestfaces[0].normal.y)) and (abs(face.normal.z) == abs(frontestfaces[0].normal.z) )):
-            #     frontestfaces.append(face)
-            # elif((face.normal-front_vector).length < (frontestfaces[0].normal-front_vector).length):
-            #     frontestfaces = [face]
+
 
         # [print(f.normal) for f in frontestfaces]
         islands = {stickers.Island(self, face, self.matrix, normal_matrix, self.s) for face in frontestfaces}
@@ -243,43 +251,9 @@ class Mesh:
                 if not edge.vector:
                     continue
 
-        # edge_a, edge_b = (uvedges[l] for l in edge.main_faces if l.is_valid)
-        # if(len(fold_list) == 2):
-        #     edge_a = fold_list[0]
-        #     edge_b = fold_list[1]
-            # old_island = join_rib(edge_a, edge_b, size_limit=page_size)
-            # islands = {old_island}
-            # # if old_island:
-            # #     islands.remove(old_island)
-
-
-        # for edge in self.edges.values():
-        #     # some edges did not know until now whether their angle is convex or concave
-        #     if edge.main_faces and (
-        #             uvfaces[edge.main_faces[0].face].flipped or uvfaces[edge.main_faces[1].face].flipped):
-        #         edge.calculate_angle()
-        #     # ensure that the order of faces corresponds to the order of uvedges
-        #     if edge.main_faces:
-        #         reordered = [None, None]
-        #         for uvedge in edge.uvedges:
-        #             try:
-        #                 index = edge.main_faces.index(uvedge.loop)
-        #                 reordered[index] = uvedge
-        #             except ValueError:
-        #                 reordered.append(uvedge)
-        #         edge.uvedges = reordered
 
         for island in self.islands:
-            # if the normals are ambiguous, flip them so that there are more convex edges than concave ones
-            # if any(uvface.flipped for uvface in island.faces.values()):
-            #     island_edges = {self.edges[uvedge.edge] for uvedge in island.edges}
-            #     balance = sum(
-            #         (+1 if edge.angle > 0 else -1) for edge in island_edges if not edge.is_cut(uvedge.uvface.face))
-            #     if balance < 0:
-            #         island.is_inside_out = True
 
-            # construct a linked list from each island's boundary
-            # uvedge.neighbor_right is clockwise = forward = via uvedge.vb if not uvface.flipped
             neighbor_lookup, conflicts = dict(), dict()
             for uvedge in island.boundary:
                 uvvertex = uvedge.va if uvedge.uvface.flipped else uvedge.vb
