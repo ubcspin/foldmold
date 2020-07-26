@@ -84,7 +84,12 @@ def unfold_all(objects, properties):
             unfolder = unfold.Unfolder(object, s)
             unfolder.do_create_uvmap = storage.do_create_uvmap
             scale = sce.unit_settings.scale_length / settings.scale
-            unfolder.prepare_ribs(cage_size, storage.priority_effect, scale, settings.limit_by_page)
+            if obj.name.startswith("Slice-x"):
+                unfolder.prepare_ribs('x', cage_size, storage.priority_effect, scale, settings.limit_by_page)
+            elif obj.name.startswith("Slice-y"):
+                unfolder.prepare_ribs('y', cage_size, storage.priority_effect, scale, settings.limit_by_page)
+            if obj.name.startswith("Slice-z"):
+                unfolder.prepare_ribs('z', cage_size, storage.priority_effect, scale, settings.limit_by_page)
             unfolder.mesh.mark_cuts()
         except unfold.UnfoldError as error:
             error.mesh_select()
@@ -889,7 +894,7 @@ class ExportPaperModel(bpy.types.Operator):
             self.report({'INFO'}, "Saved a {}-page document".format(len(self.unfolder.mesh.pages)))
 
             slices = [obj for obj in bpy.context.scene.objects if obj.name.startswith("Slice")]
-            unfold_all([slices[0]], self.properties)
+            unfold_all(slices, self.properties)
 
             return {'FINISHED'}
         except unfold.UnfoldError as error:
