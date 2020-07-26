@@ -52,6 +52,12 @@ class StorageUI:
 
     current_thickness = 3
     current_num_slices = 10
+    do_create_uvmap = False
+    priority_effect = {
+        'CONVEX': 1,
+        'CONCAVE': 1,
+        'LENGTH': 1}
+    properties = None
 
     def setThickness(self, thickness):
         self.current_thickness = thickness
@@ -61,6 +67,55 @@ class StorageUI:
 
 storage = StorageUI()
 
+
+def unfold_all(objects, properties):
+    sce = bpy.context.scene
+    settings = sce.paper_model
+    # storage.properties.do_create_stickers = False
+    for obj in objects:
+        # recall_mode = object.mode
+        cage_size = M.Vector((settings.output_size_x, settings.output_size_y))
+
+        try:
+            bpy.context.view_layer.objects.active = obj
+            bpy.ops.object.mode_set(mode='EDIT')
+            object = bpy.context.active_object
+
+            unfolder = unfold.Unfolder(object, s)
+            unfolder.do_create_uvmap = storage.do_create_uvmap
+            scale = sce.unit_settings.scale_length / settings.scale
+            unfolder.prepare_ribs(cage_size, storage.priority_effect, scale, settings.limit_by_page)
+            unfolder.mesh.mark_cuts()
+        except unfold.UnfoldError as error:
+            error.mesh_select()
+            # bpy.ops.object.mode_set(mode=recall_mode)
+            return {'CANCELLED'}
+        mesh = object.data
+        mesh.update()
+        if mesh.paper_island_list:
+            unfolder.copy_island_names(mesh.paper_island_list)
+        island_list = mesh.paper_island_list
+        attributes = {item.label: (item.abbreviation, item.auto_label, item.auto_abbrev) for item in island_list}
+        island_list.clear()  # remove previously defined islands
+        for island in unfolder.mesh.islands:
+            # add islands to UI list and set default descriptions
+            list_item = island_list.add()
+            # add faces' IDs to the island
+            for face in island.faces:
+                lface = list_item.faces.add()
+                lface.id = face.index
+            list_item["label"] = island.label
+            list_item["abbreviation"], list_item["auto_label"], list_item["auto_abbrev"] = attributes.get(
+                island.label,
+                (island.abbreviation, True, True))
+            # island_item_changed(list_item, bpy.context)
+            mesh.paper_island_index = -1
+
+
+        # bpy.ops.object.mode_set(mode=recall_mode)
+        unfolder.save(properties, obj.name)
+        del unfolder
+    # storage.properties.do_create_stickers = True
 
 class Unfold(bpy.types.Operator):
     """Blender Operator: unfold the selected object."""
@@ -114,10 +169,12 @@ class Unfold(bpy.types.Operator):
             'CONVEX': self.priority_effect_convex,
             'CONCAVE': self.priority_effect_concave,
             'LENGTH': self.priority_effect_length}
+        storage.priority_effect = priority_effect
         try:
             global s
             unfolder = unfold.Unfolder(self.object, s)
             unfolder.do_create_uvmap = self.do_create_uvmap
+            storage.do_create_uvmap = self.do_create_uvmap
             scale = sce.unit_settings.scale_length / settings.scale
             unfolder.prepare(cage_size, priority_effect, scale, settings.limit_by_page)
             unfolder.mesh.mark_cuts()
@@ -827,8 +884,13 @@ class ExportPaperModel(bpy.types.Operator):
             if self.object.data.paper_island_list:
                 self.unfolder.copy_island_names(self.object.data.paper_island_list)
             self.unfolder.setThickness(storage.getThickness())
+            print(self.properties)
             self.unfolder.save(self.properties)
             self.report({'INFO'}, "Saved a {}-page document".format(len(self.unfolder.mesh.pages)))
+
+            slices = [obj for obj in bpy.context.scene.objects if obj.name.startswith("Slice")]
+            unfold_all([slices[0]], self.properties)
+
             return {'FINISHED'}
         except unfold.UnfoldError as error:
             self.report(type={'ERROR_INVALID_INPUT'}, message=error.args[0])
@@ -1082,41 +1144,41 @@ def label_changed(self, context):
     # accessing properties via [..] to avoid a recursive call after the update
     self["auto_label"] = not self.label or self.label.isspace()
     island_item_changed(self, context)
-
-
-def island_item_changed(self, context):
-    """The labelling of an island was changed"""
-
-    def increment(abbrev, collisions):
-        letters = "ABCDEFGHIJKLMNPQRSTUVWXYZ123456789"
-        while abbrev in collisions:
-            abbrev = abbrev.rstrip(letters[-1])
-            abbrev = abbrev[:2] + letters[letters.find(abbrev[-1]) + 1 if len(abbrev) == 3 else 0]
-        return abbrev
-
-    # accessing properties via [..] to avoid a recursive call after the update
-    island_list = context.active_object.data.paper_island_list
-    if self.auto_label:
-        self["label"] = ""  # avoid self-conflict
-        number = 1
-        while any(item.label == "Island {}".format(number) for item in island_list):
-            number += 1
-        self["label"] = "Island {}".format(number)
-    if self.auto_abbrev:
-        self["abbreviation"] = ""  # avoid self-conflict
-        abbrev = "".join(u.first_letters(self.label))[:3].upper()
-        self["abbreviation"] = increment(abbrev, {item.abbreviation for item in island_list})
-    elif len(self.abbreviation) > 3:
-        self["abbreviation"] = self.abbreviation[:3]
-    self.name = "[{}] {} ({} {})".format(
-        self.abbreviation, self.label, len(self.faces), "faces" if len(self.faces) > 1 else "face")
-
-def island_index_changed(self, context):
-
-    """The active island was changed"""
-    if context.scene.paper_model.sync_island and SelectIsland.poll(context):
-        bpy.ops.mesh.select_paper_island(operation='REPLACE')
-
+#
+#
+# def island_item_changed(self, context):
+#     """The labelling of an island was changed"""
+#
+#     def increment(abbrev, collisions):
+#         letters = "ABCDEFGHIJKLMNPQRSTUVWXYZ123456789"
+#         while abbrev in collisions:
+#             abbrev = abbrev.rstrip(letters[-1])
+#             abbrev = abbrev[:2] + letters[letters.find(abbrev[-1]) + 1 if len(abbrev) == 3 else 0]
+#         return abbrev
+#
+#     # accessing properties via [..] to avoid a recursive call after the update
+#     island_list = context.active_object.data.paper_island_list
+#     if self.auto_label:
+#         self["label"] = ""  # avoid self-conflict
+#         number = 1
+#         while any(item.label == "Island {}".format(number) for item in island_list):
+#             number += 1
+#         self["label"] = "Island {}".format(number)
+#     if self.auto_abbrev:
+#         self["abbreviation"] = ""  # avoid self-conflict
+#         abbrev = "".join(u.first_letters(self.label))[:3].upper()
+#         self["abbreviation"] = increment(abbrev, {item.abbreviation for item in island_list})
+#     elif len(self.abbreviation) > 3:
+#         self["abbreviation"] = self.abbreviation[:3]
+#     self.name = "[{}] {} ({} {})".format(
+#         self.abbreviation, self.label, len(self.faces), "faces" if len(self.faces) > 1 else "face")
+#
+# def island_index_changed(self, context):
+#
+#     """The active island was changed"""
+#     if context.scene.paper_model.sync_island and SelectIsland.poll(context):
+#         bpy.ops.mesh.select_paper_island(operation='REPLACE')
+#
 
 
 def index_edge (self, context):

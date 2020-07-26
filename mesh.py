@@ -190,6 +190,139 @@ class Mesh:
 
         return True
 
+
+
+    def generate_cuts_ribs(self, page_size, priority_effect):
+        """Cut the mesh so that it can be unfolded to a flat net."""
+        normal_matrix = self.matrix.inverted().transposed()
+        initial_islands = {stickers.Island(self, face, self.matrix, normal_matrix, self.s) for face in self.data.faces}
+        initial_uvfaces = {face: uvface for island in initial_islands for face, uvface in island.faces.items()}
+        # uvedges = {loop: uvedge for island in islands for loop, uvedge in island.edges.items()}
+        # for loop, uvedge in uvedges.items():
+        #     self.edges[loop.edge].uvedges.append(uvedge)
+
+
+
+        front_vector = M.Vector((1, 0, 0))
+        frontestfaces = []
+        # frontestuvface = None
+        for face, uvface in initial_uvfaces.items():
+            # print(face.normal)
+            if(face.normal.x == front_vector.x and abs(round(face.normal.y, 3)) == front_vector.y and abs(round(face.normal.z, 3)) == front_vector.z):
+                frontestfaces.append(face)
+                # frontestuvface = uvface
+            else:
+                print(face.normal)
+
+            # if((face.normal.x == frontestfaces[0].normal.x) and (abs(face.normal.y) == abs(frontestfaces[0].normal.y)) and (abs(face.normal.z) == abs(frontestfaces[0].normal.z) )):
+            #     frontestfaces.append(face)
+            # elif((face.normal-front_vector).length < (frontestfaces[0].normal-front_vector).length):
+            #     frontestfaces = [face]
+
+        # [print(f.normal) for f in frontestfaces]
+        islands = {stickers.Island(self, face, self.matrix, normal_matrix, self.s) for face in frontestfaces}
+        self.islands = sorted(islands, reverse=True, key=lambda island: len(island.faces))
+
+        # print(islands)
+        uvfaces = {face: uvface for island in islands for face, uvface in island.faces.items()}
+        uvedges = {loop: uvedge for island in islands for loop, uvedge in island.edges.items()}
+        # fold_list = [uvedge for island in islands for loop, uvedge in island.edges.items() if not loop.edge.seam]
+        for loop, uvedge in uvedges.items():
+            self.edges[loop.edge].uvedges.append(uvedge)
+        # check for edges that are cut permanently
+        edges = [edge for edge in self.edges.values() if not edge.force_cut and edge.main_faces]
+        #
+        # print(len(fold_list))
+        if edges:
+            average_length = sum(edge.vector.length for edge in edges) / len(edges)
+            for edge in edges:
+                edge.generate_priority(priority_effect, average_length)
+            edges.sort(reverse=False, key=lambda edge: edge.priority)
+            # print([edge.is_kerf for edge in edges])
+            for edge in edges:
+                if not edge.vector:
+                    continue
+
+        # edge_a, edge_b = (uvedges[l] for l in edge.main_faces if l.is_valid)
+        # if(len(fold_list) == 2):
+        #     edge_a = fold_list[0]
+        #     edge_b = fold_list[1]
+            # old_island = join_rib(edge_a, edge_b, size_limit=page_size)
+            # islands = {old_island}
+            # # if old_island:
+            # #     islands.remove(old_island)
+
+
+        # for edge in self.edges.values():
+        #     # some edges did not know until now whether their angle is convex or concave
+        #     if edge.main_faces and (
+        #             uvfaces[edge.main_faces[0].face].flipped or uvfaces[edge.main_faces[1].face].flipped):
+        #         edge.calculate_angle()
+        #     # ensure that the order of faces corresponds to the order of uvedges
+        #     if edge.main_faces:
+        #         reordered = [None, None]
+        #         for uvedge in edge.uvedges:
+        #             try:
+        #                 index = edge.main_faces.index(uvedge.loop)
+        #                 reordered[index] = uvedge
+        #             except ValueError:
+        #                 reordered.append(uvedge)
+        #         edge.uvedges = reordered
+
+        for island in self.islands:
+            # if the normals are ambiguous, flip them so that there are more convex edges than concave ones
+            # if any(uvface.flipped for uvface in island.faces.values()):
+            #     island_edges = {self.edges[uvedge.edge] for uvedge in island.edges}
+            #     balance = sum(
+            #         (+1 if edge.angle > 0 else -1) for edge in island_edges if not edge.is_cut(uvedge.uvface.face))
+            #     if balance < 0:
+            #         island.is_inside_out = True
+
+            # construct a linked list from each island's boundary
+            # uvedge.neighbor_right is clockwise = forward = via uvedge.vb if not uvface.flipped
+            neighbor_lookup, conflicts = dict(), dict()
+            for uvedge in island.boundary:
+                uvvertex = uvedge.va if uvedge.uvface.flipped else uvedge.vb
+                if uvvertex not in neighbor_lookup:
+                    neighbor_lookup[uvvertex] = uvedge
+                else:
+                    if uvvertex not in conflicts:
+                        conflicts[uvvertex] = [neighbor_lookup[uvvertex], uvedge]
+                    else:
+                        conflicts[uvvertex].append(uvedge)
+
+            for uvedge in island.boundary:
+                uvvertex = uvedge.vb if uvedge.uvface.flipped else uvedge.va
+                if uvvertex not in conflicts:
+                    # using the 'get' method so as to handle single-connected vertices properly
+                    uvedge.neighbor_right = neighbor_lookup.get(uvvertex, uvedge)
+                    uvedge.neighbor_right.neighbor_left = uvedge
+                else:
+                    conflicts[uvvertex].append(uvedge)
+
+            # resolve merged vertices with more boundaries crossing
+            def direction_to_float(vector):
+                return (1 - vector.x / vector.length) if vector.y > 0 else (vector.x / vector.length - 1)
+
+            for uvvertex, uvedges in conflicts.items():
+                def is_inwards(uvedge):
+                    return uvedge.uvface.flipped == (uvedge.va is uvvertex)
+
+                def uvedge_sortkey(uvedge):
+                    if is_inwards(uvedge):
+                        return direction_to_float(uvedge.va.co - uvedge.vb.co)
+                    else:
+                        return direction_to_float(uvedge.vb.co - uvedge.va.co)
+
+                uvedges.sort(key=uvedge_sortkey)
+                for right, left in (
+                        zip(uvedges[:-1:2], uvedges[1::2]) if is_inwards(uvedges[0])
+                        else zip([uvedges[-1]] + uvedges[1::2], uvedges[:-1:2])):
+                    left.neighbor_right = right
+                    right.neighbor_left = left
+
+        return True
+
     def generate_stickers(self, default_width, do_create_numbers=True):
         """Add sticker faces where they are needed."""
 
@@ -449,7 +582,6 @@ class Mesh:
 #         self.children = list()    
 
 
-
 def join(uvedge_a, uvedge_b, size_limit=None, epsilon=1e-6):
     def is_below(self, other, correct_geometry=True):
         if self is other:
@@ -495,6 +627,46 @@ def join(uvedge_a, uvedge_b, size_limit=None, epsilon=1e-6):
     Try to join other island on given edge
     Returns False if they would overlap
     """
+    def is_below(self, other, correct_geometry=True):
+        if self is other:
+            return False
+        if self.top < other.bottom:
+            return True
+        if other.top < self.bottom:
+            return False
+        if self.max.tup <= other.min.tup:
+            return True
+        if other.max.tup <= self.min.tup:
+            return False
+        self_vector = self.max.co - self.min.co
+        min_to_min = other.min.co - self.min.co
+        cross_b1 = self_vector.cross(min_to_min)
+        cross_b2 = self_vector.cross(other.max.co - self.min.co)
+        if cross_b2 < cross_b1:
+            cross_b1, cross_b2 = cross_b2, cross_b1
+        if cross_b2 > 0 and (cross_b1 > 0 or (cross_b1 == 0 and not self.is_uvface_upwards())):
+            return True
+        if cross_b1 < 0 and (cross_b2 < 0 or (cross_b2 == 0 and self.is_uvface_upwards())):
+            return False
+        other_vector = other.max.co - other.min.co
+        cross_a1 = other_vector.cross(-min_to_min)
+        cross_a2 = other_vector.cross(self.max.co - other.min.co)
+        if cross_a2 < cross_a1:
+            cross_a1, cross_a2 = cross_a2, cross_a1
+        if cross_a2 > 0 and (cross_a1 > 0 or (cross_a1 == 0 and not other.is_uvface_upwards())):
+            return False
+        if cross_a1 < 0 and (cross_a2 < 0 or (cross_a2 == 0 and other.is_uvface_upwards())):
+            return True
+        if cross_a1 == cross_b1 == cross_a2 == cross_b2 == 0:
+            if correct_geometry:
+                raise GeometryError
+            elif self.is_uvface_upwards() == other.is_uvface_upwards():
+                raise Intersection
+            return False
+        if self.min.tup == other.min.tup or self.max.tup == other.max.tup:
+            return cross_a2 > cross_b2
+        raise Intersection
+
     class Intersection(Exception):
         pass
 
@@ -539,6 +711,7 @@ def join(uvedge_a, uvedge_b, size_limit=None, epsilon=1e-6):
 
         def remove(self, item):
             self.children.remove(item)
+
 
     def sweep(sweepline, segments):
         """Sweep across the segments and raise an exception if necessary"""
