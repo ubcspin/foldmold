@@ -132,12 +132,12 @@ class Ribbing:
             mesh.name = "Ribbed-"+mesh.name
 
         #top left
-        bpy.ops.mesh.primitive_cube_add(location=(mesh.location.x, mesh.location.y+mesh.dimensions.y*0.8/2, mesh.dimensions.z*0.8))
+        bpy.ops.mesh.primitive_cube_add(location=(mesh.location.x, mesh.location.y+mesh.dimensions.y*0.8/2, mesh.dimensions.z*0.9))
         bpy.context.active_object.scale = (mesh.dimensions.x, mesh.dimensions.y*0.8/2, self.thickness/1000)
-        bpy.context.active_object.name = "Slice-z"
+        bpy.context.active_object.name = "Slice-z-tl"
         mainobj = bpy.context.active_object
 
-        bpy.ops.mesh.primitive_cube_add(location=(mesh.location.x, mesh.location.y+mesh.dimensions.y*0.9, mesh.dimensions.z*0.8))
+        bpy.ops.mesh.primitive_cube_add(location=(mesh.location.x, mesh.location.y+mesh.dimensions.y*0.9, mesh.dimensions.z*0.9))
         bpy.context.active_object.scale = (mesh.dimensions.x*0.8, mesh.dimensions.y*0.2/2, self.thickness/1000)
         bpy.context.active_object.name = "leftleft"
 
@@ -154,12 +154,12 @@ class Ribbing:
         objs.remove(objs["leftleft"], do_unlink=True)
 
         #top right
-        bpy.ops.mesh.primitive_cube_add(location=(mesh.location.x, mesh.location.y-mesh.dimensions.y*0.8/2, mesh.dimensions.z*0.8))
+        bpy.ops.mesh.primitive_cube_add(location=(mesh.location.x, mesh.location.y-mesh.dimensions.y*0.8/2, mesh.dimensions.z*0.9))
         bpy.context.active_object.scale = (mesh.dimensions.x, mesh.dimensions.y*0.8/2, self.thickness/1000)
-        bpy.context.active_object.name = "Slice-z"
+        bpy.context.active_object.name = "Slice-z-tr"
         mainobj = bpy.context.active_object
 
-        bpy.ops.mesh.primitive_cube_add(location=(mesh.location.x, mesh.location.y-mesh.dimensions.y*0.9, mesh.dimensions.z*0.8))
+        bpy.ops.mesh.primitive_cube_add(location=(mesh.location.x, mesh.location.y-mesh.dimensions.y*0.9, mesh.dimensions.z*0.9))
         bpy.context.active_object.scale = (mesh.dimensions.x*0.8, mesh.dimensions.y*0.2/2, self.thickness/1000)
         bpy.context.active_object.name = "rightright"
 
@@ -174,17 +174,17 @@ class Ribbing:
 
         objs = bpy.data.objects
         objs.remove(mainobj, do_unlink=True)
-        rights[0].name = "Slice-z"
+        rights[0].name = "Slice-z-tr"
 
         # bottom left
         bpy.ops.mesh.primitive_cube_add(
-            location=(mesh.location.x, mesh.location.y + mesh.dimensions.y * 0.8 / 2, mesh.location.z -mesh.dimensions.z*0.8))
+            location=(mesh.location.x, mesh.location.y + mesh.dimensions.y * 0.8 / 2, mesh.location.z -mesh.dimensions.z*0.9))
         bpy.context.active_object.scale = (mesh.dimensions.x, mesh.dimensions.y * 0.8 / 2, self.thickness / 1000)
-        bpy.context.active_object.name = "Slice-z"
+        bpy.context.active_object.name = "Slice-z-bl"
         mainobj = bpy.context.active_object
 
         bpy.ops.mesh.primitive_cube_add(
-            location=(mesh.location.x, mesh.location.y + mesh.dimensions.y * 0.9, mesh.location.z -mesh.dimensions.z*0.8))
+            location=(mesh.location.x, mesh.location.y + mesh.dimensions.y * 0.9, mesh.location.z -mesh.dimensions.z*0.9))
         bpy.context.active_object.scale = (mesh.dimensions.x * 0.8, mesh.dimensions.y * 0.2 / 2, self.thickness / 1000)
         bpy.context.active_object.name = "leftleft"
 
@@ -202,13 +202,13 @@ class Ribbing:
 
         # bottom right
         bpy.ops.mesh.primitive_cube_add(
-            location=(mesh.location.x, mesh.location.y - mesh.dimensions.y * 0.8 / 2, mesh.location.z -mesh.dimensions.z*0.8))
+            location=(mesh.location.x, mesh.location.y - mesh.dimensions.y * 0.8 / 2, mesh.location.z -mesh.dimensions.z*0.9))
         bpy.context.active_object.scale = (mesh.dimensions.x, mesh.dimensions.y * 0.8 / 2, self.thickness / 1000)
-        bpy.context.active_object.name = "Slice-z"
+        bpy.context.active_object.name = "Slice-z-br"
         mainobj = bpy.context.active_object
 
         bpy.ops.mesh.primitive_cube_add(
-            location=(mesh.location.x, mesh.location.y - mesh.dimensions.y * 0.9, mesh.location.z -mesh.dimensions.z*0.8))
+            location=(mesh.location.x, mesh.location.y - mesh.dimensions.y * 0.9, mesh.location.z -mesh.dimensions.z*0.9))
         bpy.context.active_object.scale = (mesh.dimensions.x * 0.8, mesh.dimensions.y * 0.2 / 2, self.thickness / 1000)
         bpy.context.active_object.name = "rightright"
 
@@ -223,7 +223,7 @@ class Ribbing:
 
         objs = bpy.data.objects
         objs.remove(mainobj, do_unlink=True)
-        rights[0].name = "Slice-z"
+        rights[0].name = "Slice-z-br"
 
     def conform(self):
         slices = [obj for obj in bpy.context.scene.objects if obj.name.startswith("Slice")]
@@ -267,6 +267,8 @@ class Ribbing:
                 return vert.co.z
 
             if(slice.name.startswith("Slice-x")):
+
+                bpy.ops.mesh.remove_doubles()
                 bpy.ops.mesh.select_non_manifold()
 
                 bpy.ops.object.mode_set(mode='OBJECT')
@@ -358,6 +360,10 @@ class Ribbing:
                 for edge in bm.edges:
                     edge.seam = True
             elif(slice.name.startswith("Slice-z")):
+
+                bpy.context.view_layer.objects.active = slice
+                bpy.ops.mesh.remove_doubles()
+
                 bpy.ops.mesh.select_non_manifold()
 
                 bpy.ops.object.mode_set(mode='OBJECT')
@@ -411,6 +417,7 @@ class Ribbing:
                 bmesh.ops.delete(bm, geom=useless_edges, context="EDGES")
                 bmesh.update_edit_mesh(slice.data)
 
+
                 bpy.ops.object.mode_set(mode='OBJECT')
                 bpy.ops.object.mode_set(mode='EDIT')
 
@@ -420,6 +427,20 @@ class Ribbing:
 
                 bmesh.ops.contextual_create(bm, geom=face_verts)
 
+                backestverts = []
+                for vert in bm.verts:
+                    if (vert.co.z < 0):
+                        backestverts.append(vert)
+                        vert.select
+
+                useless_edges = []
+                for edge in bm.edges:
+                    if edge.select and not edge.seam:
+                        useless_edges.append(edge)
+                bmesh.ops.delete(bm, geom=useless_edges, context="EDGES")
+                face_verts = [edge for edge in bm.edges if edge.select and edge.is_valid]
+
+                bmesh.ops.contextual_create(bm, geom=face_verts)
 
             bmesh.update_edit_mesh(slice.data)
 
@@ -444,10 +465,122 @@ class Ribbing:
             bpy.ops.object.mode_set(mode='OBJECT')
 
 
-        ######################SLOTS - X
+        ######################SLOTS - Z
 
 
         mesh = not_slice[0]
+        for slice in slices:
+
+            if(slice.name.startswith("Slice-z-bl")):
+                bpy.context.view_layer.objects.active = slice
+                bpy.ops.object.mode_set(mode='EDIT')
+                bpy.ops.mesh.select_all(action='SELECT')
+                bpy.ops.mesh.remove_doubles()
+                bpy.ops.object.mode_set(mode='OBJECT')
+
+                # yslices = [y for y in slices if y.name.startswith("Slice-y") if y.location.y > mesh.location.y]
+                # for other in yslices:
+                #     bpy.context.view_layer.objects.active = slice
+                #     diff = slice.modifiers.new(name="Boolean", type="BOOLEAN")
+                #     diff.object = other
+                #     diff.operation = "DIFFERENCE"
+                #     # diff.double_threshold = 0
+                #     bpy.ops.object.modifier_apply(apply_as='DATA', modifier="Boolean")
+
+                xslices = [x for x in slices if x.name.startswith("Slice-x-b")]
+                for other in xslices:
+                    bpy.context.view_layer.objects.active = slice
+                    diff = slice.modifiers.new(name="Boolean", type="BOOLEAN")
+                    diff.object = other
+                    diff.operation = "DIFFERENCE"
+                    # diff.double_threshold = 0
+                    bpy.ops.object.modifier_apply(apply_as='DATA', modifier="Boolean")
+
+            elif(slice.name.startswith("Slice-z-tl")):
+
+                bpy.context.view_layer.objects.active = slice
+                bpy.ops.object.mode_set(mode='EDIT')
+                bpy.ops.mesh.select_all(action='SELECT')
+                bpy.ops.mesh.remove_doubles()
+                bpy.ops.object.mode_set(mode='OBJECT')
+                #
+                # yslices = [y for y in slices if y.name.startswith("Slice-y") if y.location.y > mesh.location.y]
+                # for other in yslices:
+                #     bpy.context.view_layer.objects.active = slice
+                #     diff = slice.modifiers.new(name="Boolean", type="BOOLEAN")
+                #     diff.object = other
+                #     diff.operation = "DIFFERENCE"
+                #     # diff.double_threshold = 0
+                #     bpy.ops.object.modifier_apply(apply_as='DATA', modifier="Boolean")
+
+                xslices = [x for x in slices if x.name.startswith("Slice-x-t")]
+                for other in xslices:
+                    bpy.context.view_layer.objects.active = slice
+                    diff = slice.modifiers.new(name="Boolean", type="BOOLEAN")
+                    diff.object = other
+                    diff.operation = "DIFFERENCE"
+                    # diff.double_threshold = 0
+                    bpy.ops.object.modifier_apply(apply_as='DATA', modifier="Boolean")
+
+
+            elif(slice.name.startswith("Slice-z-br")):
+
+                bpy.context.view_layer.objects.active = slice
+                bpy.ops.object.mode_set(mode='EDIT')
+                bpy.ops.mesh.select_all(action='SELECT')
+                bpy.ops.mesh.remove_doubles()
+                bpy.ops.object.mode_set(mode='OBJECT')
+
+                # yslices = [y for y in slices if y.name.startswith("Slice-y") if y.location.y <= mesh.location.y]
+                # for other in yslices:
+                #     bpy.context.view_layer.objects.active = slice
+                #     diff = slice.modifiers.new(name="Boolean", type="BOOLEAN")
+                #     diff.object = other
+                #     diff.operation = "DIFFERENCE"
+                #     # diff.double_threshold = 0
+                #     bpy.ops.object.modifier_apply(apply_as='DATA', modifier="Boolean")
+
+                xslices = [x for x in slices if x.name.startswith("Slice-x-b")]
+                for other in xslices:
+
+                    bpy.context.view_layer.objects.active = slice
+                    diff = slice.modifiers.new(name="Boolean", type="BOOLEAN")
+                    diff.object = other
+                    diff.operation = "DIFFERENCE"
+                    # diff.double_threshold = 0
+                    bpy.ops.object.modifier_apply(apply_as='DATA', modifier="Boolean")
+
+            elif(slice.name.startswith("Slice-z-tr")):
+
+                bpy.context.view_layer.objects.active = slice
+                bpy.ops.object.mode_set(mode='EDIT')
+                bpy.ops.mesh.select_all(action='SELECT')
+                bpy.ops.mesh.remove_doubles()
+                bpy.ops.object.mode_set(mode='OBJECT')
+
+                # yslices = [y for y in slices if y.name.startswith("Slice-y") if y.location.y <= mesh.location.y]
+                # for other in yslices:
+                #     bpy.context.view_layer.objects.active = slice
+                #     diff = slice.modifiers.new(name="Boolean", type="BOOLEAN")
+                #     diff.object = other
+                #     diff.operation = "DIFFERENCE"
+                #     # diff.double_threshold = 0
+                #     bpy.ops.object.modifier_apply(apply_as='DATA', modifier="Boolean")
+
+                xslices = [x for x in slices if x.name.startswith("Slice-x-t")]
+                for other in xslices:
+                    bpy.context.view_layer.objects.active = slice
+                    diff = slice.modifiers.new(name="Boolean", type="BOOLEAN")
+                    diff.object = other
+                    diff.operation = "DIFFERENCE"
+                    # diff.double_threshold = 0
+                    bpy.ops.object.modifier_apply(apply_as='DATA', modifier="Boolean")
+
+
+
+
+        ######################SLOTS - X
+
         for slice in slices:
 
             if(slice.name.startswith("Slice-x-t")):
