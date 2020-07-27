@@ -19,7 +19,7 @@ class Ribbing:
             spot = (mesh.location.x - mesh.dimensions.x/2) + i*(mesh.dimensions.x)/(self.num_slices )
             bpy.ops.mesh.primitive_cube_add(location=(spot, mesh.location.y, mesh.location.z + mesh.dimensions.z*0.8/2))
             bpy.context.active_object.scale = (self.thickness/1000, mesh.dimensions.y, mesh.dimensions.z*0.8/2)
-            bpy.context.active_object.name = "Slice-x"
+            bpy.context.active_object.name = "Slice-x-t"
             mainobj = bpy.context.active_object
 
             bpy.ops.mesh.primitive_cube_add(location=(spot, mesh.location.y, mesh.location.z + mesh.dimensions.z*0.9))
@@ -41,7 +41,7 @@ class Ribbing:
             #bottom
             bpy.ops.mesh.primitive_cube_add(location=(spot, mesh.location.y, mesh.location.z -mesh.dimensions.z*0.8/2))
             bpy.context.active_object.scale = (self.thickness/1000, mesh.dimensions.y, mesh.dimensions.z*0.8/2)
-            bpy.context.active_object.name = "Slice-x"
+            bpy.context.active_object.name = "Slice-x-b"
             mainobj = bpy.context.active_object
 
             bpy.ops.mesh.primitive_cube_add(location=(spot, mesh.location.y, mesh.location.z -mesh.dimensions.z*0.9))
@@ -329,6 +329,14 @@ class Ribbing:
                 face_verts = [edge for edge in bm.edges if edge.select]
 
                 bmesh.ops.contextual_create(bm, geom=face_verts)
+                bmesh.update_edit_mesh(slice.data)
+
+                bpy.ops.object.mode_set(mode='OBJECT')
+                bpy.ops.object.mode_set(mode='EDIT')
+                bm = bmesh.from_edit_mesh(slice.data)
+                back_verts = [edge for edge in bm.edges if edge.verts[0].co.x < 0 and edge.verts[1].co.x < 0 ]
+                bmesh.ops.contextual_create(bm, geom=back_verts)
+
             elif(slice.name.startswith("Slice-y")):
                 useless_edges = []
                 for edge in bm.edges:
@@ -418,5 +426,132 @@ class Ribbing:
             bpy.ops.object.mode_set(mode='OBJECT')
 
 
+        #############RECALCULATE NORMALS
+        for slice in slices:
+            bpy.ops.object.select_all(action='DESELECT')
+            # slice.select = True
+            bpy.context.view_layer.objects.active = slice
 
+            # go edit mode
+            bpy.ops.object.mode_set(mode='EDIT')
+            # select al faces
+            bpy.ops.mesh.select_all(action='SELECT')
+            # recalculate outside normals
+            bpy.ops.mesh.normals_make_consistent(inside=True)
+            bpy.ops.mesh.normals_make_consistent(inside=False)
+            bpy.ops.mesh.remove_doubles()
+            # go object mode again
+            bpy.ops.object.mode_set(mode='OBJECT')
+
+
+        ######################SLOTS - X
+
+
+        mesh = not_slice[0]
+        for slice in slices:
+
+            if(slice.name.startswith("Slice-x-t")):
+                slice.location = (slice.location.x, slice.location.y, slice.location.z+slice.dimensions.z/4)
+
+                slice_copy = slice.copy()
+                slice_copy.name = "Copy"
+                slice_copy.data = slice.data.copy()
+                # new_obj.animation_data_clear()
+                bpy.context.collection.objects.link(slice_copy)
+
+                if(slice.location.x > mesh.location.x):
+                    yslices = [y for y in slices if y.name.startswith("Slice-y") if y.location.x > mesh.location.x]
+                    for other in yslices:
+                        bpy.context.view_layer.objects.active = slice
+                        diff = slice.modifiers.new(name="Boolean", type="BOOLEAN")
+                        diff.object = other
+                        diff.operation = "DIFFERENCE"
+                        # diff.double_threshold = 0
+                        bpy.ops.object.modifier_apply(apply_as='DATA', modifier="Boolean")
+
+                        #
+                        # bpy.context.view_layer.objects.active = other
+                        # diff = slice.modifiers.new(name="Boolean", type="BOOLEAN")
+                        # diff.object = slice_copy
+                        # diff.operation = "DIFFERENCE"
+                        # # diff.double_threshold = 0
+                        # bpy.ops.object.modifier_apply(apply_as='DATA', modifier="Boolean")
+                else:
+                    yslices = [y for y in slices if y.name.startswith("Slice-y") if y.location.x <= mesh.location.x]
+                    for other in yslices:
+                        bpy.context.view_layer.objects.active = slice
+                        diff = slice.modifiers.new(name="Boolean", type="BOOLEAN")
+                        diff.object = other
+                        diff.operation = "DIFFERENCE"
+                        # diff.double_threshold = 0
+                        bpy.ops.object.modifier_apply(apply_as='DATA', modifier="Boolean")
+
+                        # bpy.context.view_layer.objects.active = other
+                        # diff = slice.modifiers.new(name="Boolean", type="BOOLEAN")
+                        # diff.object = slice_copy
+                        # diff.operation = "DIFFERENCE"
+                        # # diff.double_threshold = 0
+                        # bpy.ops.object.modifier_apply(apply_as='DATA', modifier="Boolean")
+
+
+            if(slice.name.startswith("Slice-x-b")):
+                    slice.location = (slice.location.x, slice.location.y, slice.location.z-slice.dimensions.z/4)
+
+                    slice_copy= slice.copy()
+                    slice_copy.name = "Copy"
+                    slice_copy.data = slice.data.copy()
+                    # new_obj.animation_data_clear()
+                    bpy.context.collection.objects.link(slice_copy)
+
+                    if(slice.location.x > mesh.location.x):
+                        yslices = [y for y in slices if y.name.startswith("Slice-y") if y.location.x > mesh.location.x]
+                        for other in yslices:
+                            bpy.context.view_layer.objects.active = slice
+                            diff = slice.modifiers.new(name="Boolean", type="BOOLEAN")
+                            diff.object = other
+                            diff.operation = "DIFFERENCE"
+                            # diff.double_threshold = 0
+                            bpy.ops.object.modifier_apply(apply_as='DATA', modifier="Boolean")
+                    else:
+                        yslices = [y for y in slices if y.name.startswith("Slice-y") if y.location.x <= mesh.location.x]
+                        for other in yslices:
+                            bpy.context.view_layer.objects.active = slice
+                            diff = slice.modifiers.new(name="Boolean", type="BOOLEAN")
+                            diff.object = other
+                            diff.operation = "DIFFERENCE"
+                            # diff.double_threshold = 0
+                            bpy.ops.object.modifier_apply(apply_as='DATA', modifier="Boolean")
+
+
+        ############################SLOTS Y
+        for slice in slices:
+
+            if (slice.name.startswith("Slice-y")):
+
+                if (slice.location.x > mesh.location.x):
+                    xslices = [x for x in bpy.context.scene.objects if x.name.startswith("Copy") if x.location.x > mesh.location.x]
+                    for other in xslices:
+                        bpy.context.view_layer.objects.active = slice
+                        diff = slice.modifiers.new(name="Boolean", type="BOOLEAN")
+                        diff.object = other
+                        diff.operation = "DIFFERENCE"
+                        # diff.double_threshold = 0
+                        bpy.ops.object.modifier_apply(apply_as='DATA', modifier="Boolean")
+
+
+                else:
+                    xslices = [x for x in bpy.context.scene.objects  if x.name.startswith("Copy") if x.location.x <= mesh.location.x]
+                    for other in xslices:
+                        bpy.context.view_layer.objects.active = slice
+                        diff = slice.modifiers.new(name="Boolean", type="BOOLEAN")
+                        diff.object = other
+                        diff.operation = "DIFFERENCE"
+                        # diff.double_threshold = 0
+                        bpy.ops.object.modifier_apply(apply_as='DATA', modifier="Boolean")
+
+
+        copies = [c for c in bpy.context.scene.objects if c.name.startswith("Copy")]
+        for copy in copies:
+            copy.select_set(True)
+        bpy.ops.object.delete()
 
