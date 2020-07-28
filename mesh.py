@@ -394,6 +394,7 @@ class Mesh:
             for p in points:
                 if(p.x != 0.5):
                     points_c.append(p)
+
             # DEBUG
             angle, _ = u.cage_fit(points_c, (cage_size.y - title_height) / cage_size.x)
             rot = M.Matrix.Rotation(angle, 2)
@@ -404,7 +405,7 @@ class Mesh:
             for marker in island.markers:
                 marker.rot = rot @ marker.rot
             top_right = M.Vector((max(v.x for v in points_c), max(v.y for v in points_c) - title_height))
-            bottom_left = M.Vector((min(v.x for v in points_c), min(v.y for v in points_c) - title_height))
+            bottom_left = M.Vector((min(v.x for v in points_c), min(v.y for v in points_c)))
             # print(f"fitted aspect: {(top_right.y - bottom_left.y) / (top_right.x - bottom_left.x)}")
             for point in points_c:
                 point -= bottom_left
@@ -458,11 +459,16 @@ class Mesh:
             quantile = sorted(distances)[len(distances) // divisor]
             return [stop for stop, distance in zip(stops, chain([quantile], distances)) if distance >= quantile]
 
-        if any(island.bounding_box.x > cage_size.x or island.bounding_box.y > cage_size.y for island in self.islands):
-            raise unfold.UnfoldError(
-                "An island is too big to fit onto page of the given size. "
-                "Either downscale the model or find and split that island manually.\n"
-                "Export failed, sorry.")
+        for island in self.islands:
+            print("Too big x:"+str(island.bounding_box.x)+" "+str(cage_size.x))
+            print("Too big y:"+str(island.bounding_box.y)+" "+str(cage_size.y))
+            if (island.bounding_box.x > cage_size.x or island.bounding_box.y > cage_size.y ):
+                raise unfold.UnfoldError(
+                    "An island is too big to fit onto page of the given size. "
+                    "Either downscale the model or find and split that island manually.\n"
+                    "Export failed, sorry.")
+
+                break
         # sort islands by their diagonal... just a guess
         remaining_islands = sorted(self.islands, reverse=True, key=lambda island: island.bounding_box.length_squared)
         page_num = 1  # TODO delete me

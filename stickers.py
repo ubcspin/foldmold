@@ -56,6 +56,7 @@ class Stickers:
                 points = element.get('points')
                 points += " 0.5,0.5"
                 vertices += map(self.makeUVVertices, self.vectorize_polylines(points))
+                # print(len(vertices))
 
             elif element.tag == ns + 'line':
                 vertices += self.vectorize_lines(l)
@@ -165,11 +166,11 @@ class AbstractSticker:
 # TODO: update sticker svg's to stickers with right thickness
 class Tooth(AbstractSticker):
     def __init__(self, thickness_switch):
-        AbstractSticker.__init__(self, ["tooth0.svg", "tooth1.svg", "tooth2.svg"], 0.005, thickness_switch)
+        AbstractSticker.__init__(self, ["tooth0.svg", "tooth1.svg", "tooth2.svg"], 0.004, thickness_switch)
 
 class Gap(AbstractSticker):
     def __init__(self, thickness_switch):
-        AbstractSticker.__init__(self, ["gap.svg", "gap.svg", "gap.svg"], 0.003, thickness_switch)
+        AbstractSticker.__init__(self, ["gap.svg", "gap.svg", "gap.svg"], 0.0035, thickness_switch)
 
 class Hole(AbstractSticker):
     def __init__(self, thickness_switch):
@@ -203,9 +204,15 @@ class AbstractPattern:
         
     def getGeometry(self):
         vertices = []
+        space = 0
         for tile in self.tileset:
             for vi in tile.geometry:
-                vertices.insert(len(vertices), vi)
+                if(vi.co.x != 0.5):
+                    vertices.insert(len(vertices), UVVertex(M.Vector((vi.co.x +space, vi.co.y))))
+                else:
+                    vertices.insert(len(vertices), UVVertex(M.Vector((vi.co.x, vi.co.y))))
+                print(vi.co.x + space)
+            space += tile.width
         return vertices
 
 class SawtoothPattern(AbstractPattern):
