@@ -227,15 +227,20 @@ class PDF:
                     if edge.freestyle:
                         data_freestyle.append(data_uvedge)
                     # each uvedge exists in two opposite-oriented variants; we want to add each only once
-                    if uvedge.sticker or uvedge.uvface.flipped != (id(uvedge.va) > id(uvedge.vb)):
+                    # if uvedge.sticker or uvedge.uvface.flipped != (id(uvedge.va) > id(uvedge.vb)):
+                    #     if edge.angle > self.angle_epsilon:
+                    #         # if(edge.is_kerf):
+                    #             # print("ADDED((((((((((((((((((")
+                    #         data_convex.append(data_uvedge)
+                    #     # elif edge.angle < -self.angle_epsilon:
+                    #     else:
+                    #         # if(edge.is_kerf):
+                    #             # print("ADDED))))))))))))))))))")
+                    #         data_concave.append(data_uvedge)
+                    if not uvedge.sticker and uvedge.uvface.flipped != (id(uvedge.va) > id(uvedge.vb)):
                         if edge.angle > self.angle_epsilon:
-                            # if(edge.is_kerf):
-                                # print("ADDED((((((((((((((((((")
                             data_convex.append(data_uvedge)
-                        # elif edge.angle < -self.angle_epsilon:
                         else:
-                            # if(edge.is_kerf):
-                                # print("ADDED))))))))))))))))))")
                             data_concave.append(data_uvedge)
                 if island.is_inside_out:
                     data_convex, data_concave = data_concave, data_convex
