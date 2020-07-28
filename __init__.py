@@ -1,6 +1,6 @@
 '''
 Copyright (C) 2020
-hshakeri@cs.ubc.ca
+haniehs@cs.ubc.ca
 
 Created by Hanieh Shakeri
 
