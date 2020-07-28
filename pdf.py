@@ -242,6 +242,11 @@ class PDF:
                             data_convex.append(data_uvedge)
                         else:
                             data_concave.append(data_uvedge)
+                    elif(uvedge.sticker and uvedge.type == 'glue'):
+                        if edge.angle > self.angle_epsilon:
+                            data_convex.append(data_uvedge)
+                        else:
+                            data_concave.append(data_uvedge)
                 if island.is_inside_out:
                     data_convex, data_concave = data_concave, data_convex
 
