@@ -409,7 +409,7 @@ class AddPresetPaperModel(bl_operators.presets.AddPresetBase, bpy.types.Operator
 class VIEW3D_PT_paper_model_tools(bpy.types.Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = 'Paper'
+    bl_category = 'Step 3'
     bl_label = "Unfold"
 
     def draw(self, context):
@@ -434,7 +434,7 @@ class VIEW3D_PT_paper_model_tools(bpy.types.Panel):
 class VIEW3D_PT_paper_model_settings(bpy.types.Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = 'Paper'
+    bl_category = 'Step 3'
     bl_label = "Export"
 
     def draw(self, context):
@@ -1049,7 +1049,7 @@ class VIEW3D_PT_paper_model_tools(bpy.types.Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_label = "Unfold"
-    bl_category = 'Paper'
+    bl_category = 'Step 3'
     def draw(self, context):
 
         layout = self.layout
@@ -1059,27 +1059,27 @@ class VIEW3D_PT_paper_model_tools(bpy.types.Panel):
 
         layout.operator("mesh.unfold")
         row = layout.row()
-        row.prop(context.scene, "dropdown_list")
-        layout.operator("mesh.apply_edge_type")
-
-
-        if context.mode == 'EDIT_MESH':
-            row = layout.row(align=True)
-            row.operator("mesh.mark_seam", text="Mark Seam").clear = False
-            row.operator("mesh.mark_seam", text="Clear Seam").clear = True
-        else:
-            layout.operator("mesh.clear_all_seams")
-
-        row = layout.row()
-        row.prop(context.scene, "score_direction")
-        row = layout.row()
-        row.prop(context.scene, "score_num")
-        layout.operator("mesh.apply_scores")
+        # row.prop(context.scene, "dropdown_list")
+        # layout.operator("mesh.apply_edge_type")
+        #
+        #
+        # if context.mode == 'EDIT_MESH':
+        #     row = layout.row(align=True)
+        #     row.operator("mesh.mark_seam", text="Mark Seam").clear = False
+        #     row.operator("mesh.mark_seam", text="Clear Seam").clear = True
+        # else:
+        #     layout.operator("mesh.clear_all_seams")
+        #
+        # row = layout.row()
+        # row.prop(context.scene, "score_direction")
+        # row = layout.row()
+        # row.prop(context.scene, "score_num")
+        # layout.operator("mesh.apply_scores")
 
 class VIEW3D_PT_paper_model_settings(bpy.types.Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = 'Paper'
+    bl_category = 'Step 3'
     bl_label = "Export"
 
     def draw(self, context):
@@ -1228,12 +1228,12 @@ class OBJECT_OT_Laser_Slicer(bpy.types.Operator):
 
         r.settings(storage.current_num_slices, storage.getThickness())
         object_to_be_ribbed = bpy.context.active_object
-        if(bpy.context.scene.slicer_settings.direction == 'x'):
-            r.slice_x(object_to_be_ribbed)
-        elif(bpy.context.scene.slicer_settings.direction == 'y'):
-            r.slice_y(object_to_be_ribbed)
-        elif(bpy.context.scene.slicer_settings.direction == 'z'):
-            r.slice_z(object_to_be_ribbed)
+        # if(bpy.context.scene.slicer_settings.direction == 'x'):
+        r.slice_x(object_to_be_ribbed)
+        # elif(bpy.context.scene.slicer_settings.direction == 'y'):
+        r.slice_y(object_to_be_ribbed)
+        # elif(bpy.context.scene.slicer_settings.direction == 'z'):
+        r.slice_z(object_to_be_ribbed)
         return {'FINISHED'}
 
 class OBJECT_OT_Conformer(bpy.types.Operator):
@@ -1250,36 +1250,78 @@ class OBJECT_PT_Laser_Slicer_Panel(bpy.types.Panel):
     bl_label = "Ribbing Panel"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
-    bl_context = "objectmode"
-    bl_category = "Ribbing"
+    # bl_context = "objectmode"
+    bl_category = "Step 2"
 
     def draw(self, context):
         scene = context.scene
         layout = self.layout
         row = layout.row()
-        row.label(text="Material dimensions:")
+
+        # if context.active_object and context.active_object.select_get() and context.active_object.type == 'MESH' and context.active_object.data.polygons:
+        row = layout.row()
+        # cutdir = scene.slicer_settings.direction
+        num_slices = scene.slicer_settings.num_slices
+
+        # if bpy.data.filepath or context.scene.slicer_settings.laser_slicer_ofile:
+        split = layout.split()
+        col = split.column()
+        row.label(text="Preview Ribbing:")
+        row = layout.row()
+        col.operator("object.laser_slicer", text="Add Ribbing")
+        row = layout.row()
+        row.label(text="Finalize Ribbing:")
+        row = layout.row()
+        row.operator("object.conformer", text="Conform Ribbing")
+        #
+        # row = layout.row()
+        # row.operator("object.thickness", text="Add Thickness")
+
+
+class OBJECT_PT_Mold_Panel(bpy.types.Panel):
+    bl_label = "Mold Prep Panel"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"
+    # bl_context = "objectmode"
+    bl_category = "Step 1"
+
+    def draw(self, context):
+        scene = context.scene
+        layout = self.layout
+        row = layout.row()
+        row.label(text="Specify Material dimensions:")
         newrow(layout, "Material:", scene.slicer_settings, 'laser_slicer_material')
         newrow(layout, "Thickness (mm):", scene.slicer_settings, 'laser_slicer_material_thick')
         newrow(layout, "Width (mm):", scene.slicer_settings, 'laser_slicer_material_width')
         newrow(layout, "Height (mm):", scene.slicer_settings, 'laser_slicer_material_height')
-        newrow(layout, "Direction:", scene.slicer_settings, 'direction')
-        newrow(layout, "Number of Slices:", scene.slicer_settings, 'num_slices')
 
-        newrow(layout, "Cut spacing (mm):", scene.slicer_settings, 'laser_slicer_cut_thickness')
-        newrow(layout, "Export file(s):", scene.slicer_settings, 'laser_slicer_ofile')
 
-        if context.active_object and context.active_object.select_get() and context.active_object.type == 'MESH' and context.active_object.data.polygons:
-            row = layout.row()
-            cutdir = scene.slicer_settings.direction
-            num_slices = scene.slicer_settings.num_slices
+        row = layout.row()
+        row.label(text="Add Seams and Joinery:")
+        row = layout.row()
+        row.prop(context.scene, "dropdown_list")
+        layout.operator("mesh.apply_edge_type")
 
-            # if bpy.data.filepath or context.scene.slicer_settings.laser_slicer_ofile:
-            split = layout.split()
-            col = split.column()
-            col.operator("object.laser_slicer", text="Add Ribbing")
-            row = layout.row()
-            row.operator("object.conformer", text="Conform Ribbing")
 
+        if context.mode == 'EDIT_MESH':
+            row = layout.row(align=True)
+            row.operator("mesh.mark_seam", text="Mark Seam").clear = False
+            row.operator("mesh.mark_seam", text="Clear Seam").clear = True
+        else:
+            layout.operator("mesh.clear_all_seams")
+
+
+        row = layout.row()
+        row.label(text="Curve Faces by Scoring")
+        row = layout.row()
+        row.prop(context.scene, "score_direction")
+        row = layout.row()
+        row.prop(context.scene, "score_num")
+        layout.operator("mesh.apply_scores")
+
+
+        row = layout.row()
+        row.label(text="Add Material Thickness:")
         row = layout.row()
         row.operator("object.thickness", text="Add Thickness")
 
@@ -1292,8 +1334,8 @@ def on_update_num(self, context):
 
 
 class Slicer_Settings(bpy.types.PropertyGroup):
-    direction: bpy.props.StringProperty(name="", description="Axis along which to cut", default='x')
-    num_slices: bpy.props.IntProperty(name="", description="number of slices", min=1, max=500, default=10, update=on_update_num)
+    # direction: bpy.props.StringProperty(name="", description="Axis along which to cut", default='x')
+    num_slices: bpy.props.IntProperty(name="", description="number of slices", min=1, max=500, default=3, update=on_update_num)
     laser_slicer_material: bpy.props.EnumProperty(name="", description="Cutting material", default='CARDBOARD',
                                         update=on_update_material,
                                         items=storage.global_materials)
@@ -1334,7 +1376,8 @@ module_classes = (
     OBJECT_PT_Laser_Slicer_Panel,
     OBJECT_OT_Laser_Slicer,
     OBJECT_OT_Conformer,
-    Slicer_Settings
+    Slicer_Settings,
+    OBJECT_PT_Mold_Panel
 )
 
 
