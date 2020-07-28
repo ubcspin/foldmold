@@ -552,7 +552,7 @@ class PaperModelStyle(bpy.types.PropertyGroup):
     ]
     outer_color: bpy.props.FloatVectorProperty(
         name="Outer Lines", description="Color of net outline",
-        default=(0.0, 0.0, 0.0, 1.0), min=0, max=1, subtype='COLOR', size=4)
+        default=(1.0, 0.0, 0.0, 1.0), min=0, max=1, subtype='COLOR', size=4)
     outer_style: bpy.props.EnumProperty(
         name="Outer Lines Drawing Style", description="Drawing style of net outline",
         default='SOLID', items=line_styles)
@@ -575,19 +575,19 @@ class PaperModelStyle(bpy.types.PropertyGroup):
 
     convex_color: bpy.props.FloatVectorProperty(
         name="Inner Convex Lines", description="Color of lines to be folded to a convex angle",
-        default=(0.0, 0.0, 0.0, 1.0), min=0, max=1, subtype='COLOR', size=4)
+        default=(0.0, 1.0, 0.0, 1.0), min=0, max=1, subtype='COLOR', size=4)
     convex_style: bpy.props.EnumProperty(
         name="Convex Lines Drawing Style", description="Drawing style of lines to be folded to a convex angle",
-        default='DASH', items=line_styles)
+        default='SOLID', items=line_styles)
     convex_width: bpy.props.FloatProperty(
         name="Convex Lines Thickness", description="Relative thickness of concave lines",
         default=2, min=0, soft_max=10, precision=1, step=10, subtype='FACTOR')
     concave_color: bpy.props.FloatVectorProperty(
-        name="Inner Concave Lines", description="Color of lines to be folded to a concave angle",
-        default=(0.0, 0.0, 0.0, 1.0), min=0, max=1, subtype='COLOR', size=4)
+            name="Inner Concave Lines", description="Color of lines to be folded to a concave angle",
+            default=(0.0, 1.0, 0.0, 1.0), min=0, max=1, subtype='COLOR', size=4)
     concave_style: bpy.props.EnumProperty(
         name="Concave Lines Drawing Style", description="Drawing style of lines to be folded to a concave angle",
-        default='DASHDOT', items=line_styles)
+        default='SOLID', items=line_styles)
     concave_width: bpy.props.FloatProperty(
         name="Concave Lines Thickness", description="Relative thickness of concave lines",
         default=2, min=0, soft_max=10, precision=1, step=10, subtype='FACTOR')
@@ -659,80 +659,80 @@ class IslandList(bpy.types.PropertyGroup):
         name="Auto Abbreviation", description="Generate the abbreviation automatically",
         default=True, update=island_item_changed)
 
-class PaperModelStyle(bpy.types.PropertyGroup):
-    line_styles = [
-        ('SOLID', "Solid (----)", "Solid line"),
-        ('DOT', "Dots (. . .)", "Dotted line"),
-        ('DASH', "Short Dashes (- - -)", "Solid line"),
-        ('LONGDASH', "Long Dashes (-- --)", "Solid line"),
-        ('DASHDOT', "Dash-dotted (-- .)", "Solid line")
-    ]
-    outer_color: bpy.props.FloatVectorProperty(
-        name="Outer Lines", description="Color of net outline",
-        default=(0.0, 0.0, 0.0, 1.0), min=0, max=1, subtype='COLOR', size=4)
-    outer_style: bpy.props.EnumProperty(
-        name="Outer Lines Drawing Style", description="Drawing style of net outline",
-        default='SOLID', items=line_styles)
-    line_width: bpy.props.FloatProperty(
-        name="Base Lines Thickness",
-        description="Base thickness of net lines, each actual value is a multiple of this length",
-        default=1e-4, min=0, soft_max=5e-3, precision=5, step=1e-2, subtype="UNSIGNED", unit="LENGTH")
-    outer_width: bpy.props.FloatProperty(
-        name="Outer Lines Thickness", description="Relative thickness of net outline",
-        default=3, min=0, soft_max=10, precision=1, step=10, subtype='FACTOR')
-    use_outbg: bpy.props.BoolProperty(
-        name="Highlight Outer Lines", description="Add another line below every line to improve contrast",
-        default=True)
-    outbg_color: bpy.props.FloatVectorProperty(
-        name="Outer Highlight", description="Color of the highlight for outer lines",
-        default=(1.0, 1.0, 1.0, 1.0), min=0, max=1, subtype='COLOR', size=4)
-    outbg_width: bpy.props.FloatProperty(
-        name="Outer Highlight Thickness", description="Relative thickness of the highlighting lines",
-        default=5, min=0, soft_max=10, precision=1, step=10, subtype='FACTOR')
-
-    convex_color: bpy.props.FloatVectorProperty(
-        name="Inner Convex Lines", description="Color of lines to be folded to a convex angle",
-        default=(0.0, 0.0, 0.0, 1.0), min=0, max=1, subtype='COLOR', size=4)
-    convex_style: bpy.props.EnumProperty(
-        name="Convex Lines Drawing Style", description="Drawing style of lines to be folded to a convex angle",
-        default='DASH', items=line_styles)
-    convex_width: bpy.props.FloatProperty(
-        name="Convex Lines Thickness", description="Relative thickness of concave lines",
-        default=2, min=0, soft_max=10, precision=1, step=10, subtype='FACTOR')
-    concave_color: bpy.props.FloatVectorProperty(
-        name="Inner Concave Lines", description="Color of lines to be folded to a concave angle",
-        default=(0.0, 0.0, 0.0, 1.0), min=0, max=1, subtype='COLOR', size=4)
-    concave_style: bpy.props.EnumProperty(
-        name="Concave Lines Drawing Style", description="Drawing style of lines to be folded to a concave angle",
-        default='DASHDOT', items=line_styles)
-    concave_width: bpy.props.FloatProperty(
-        name="Concave Lines Thickness", description="Relative thickness of concave lines",
-        default=2, min=0, soft_max=10, precision=1, step=10, subtype='FACTOR')
-    freestyle_color: bpy.props.FloatVectorProperty(
-        name="Freestyle Edges", description="Color of lines marked as Freestyle Edge",
-        default=(0.0, 0.0, 0.0, 1.0), min=0, max=1, subtype='COLOR', size=4)
-    freestyle_style: bpy.props.EnumProperty(
-        name="Freestyle Edges Drawing Style", description="Drawing style of Freestyle Edges",
-        default='SOLID', items=line_styles)
-    freestyle_width: bpy.props.FloatProperty(
-        name="Freestyle Edges Thickness", description="Relative thickness of Freestyle edges",
-        default=2, min=0, soft_max=10, precision=1, step=10, subtype='FACTOR')
-    use_inbg: bpy.props.BoolProperty(
-        name="Highlight Inner Lines", description="Add another line below every line to improve contrast",
-        default=True)
-    inbg_color: bpy.props.FloatVectorProperty(
-        name="Inner Highlight", description="Color of the highlight for inner lines",
-        default=(1.0, 1.0, 1.0, 1.0), min=0, max=1, subtype='COLOR', size=4)
-    inbg_width: bpy.props.FloatProperty(
-        name="Inner Highlight Thickness", description="Relative thickness of the highlighting lines",
-        default=2, min=0, soft_max=10, precision=1, step=10, subtype='FACTOR')
-
-    sticker_fill: bpy.props.FloatVectorProperty(
-        name="Tabs Fill", description="Fill color of sticking tabs",
-        default=(0.9, 0.9, 0.9, 1.0), min=0, max=1, subtype='COLOR', size=4)
-    text_color: bpy.props.FloatVectorProperty(
-        name="Text Color", description="Color of all text used in the document",
-        default=(0.0, 0.0, 0.0, 1.0), min=0, max=1, subtype='COLOR', size=4)
+# class PaperModelStyle(bpy.types.PropertyGroup):
+#     line_styles = [
+#         ('SOLID', "Solid (----)", "Solid line"),
+#         ('DOT', "Dots (. . .)", "Dotted line"),
+#         ('DASH', "Short Dashes (- - -)", "Solid line"),
+#         ('LONGDASH', "Long Dashes (-- --)", "Solid line"),
+#         ('DASHDOT', "Dash-dotted (-- .)", "Solid line")
+#     ]
+#     outer_color: bpy.props.FloatVectorProperty(
+#         name="Outer Lines", description="Color of net outline",
+#         default=(0.0, 0.0, 0.0, 1.0), min=0, max=1, subtype='COLOR', size=4)
+#     outer_style: bpy.props.EnumProperty(
+#         name="Outer Lines Drawing Style", description="Drawing style of net outline",
+#         default='SOLID', items=line_styles)
+#     line_width: bpy.props.FloatProperty(
+#         name="Base Lines Thickness",
+#         description="Base thickness of net lines, each actual value is a multiple of this length",
+#         default=1e-4, min=0, soft_max=5e-3, precision=5, step=1e-2, subtype="UNSIGNED", unit="LENGTH")
+#     outer_width: bpy.props.FloatProperty(
+#         name="Outer Lines Thickness", description="Relative thickness of net outline",
+#         default=3, min=0, soft_max=10, precision=1, step=10, subtype='FACTOR')
+#     use_outbg: bpy.props.BoolProperty(
+#         name="Highlight Outer Lines", description="Add another line below every line to improve contrast",
+#         default=True)
+#     outbg_color: bpy.props.FloatVectorProperty(
+#         name="Outer Highlight", description="Color of the highlight for outer lines",
+#         default=(1.0, 1.0, 1.0, 1.0), min=0, max=1, subtype='COLOR', size=4)
+#     outbg_width: bpy.props.FloatProperty(
+#         name="Outer Highlight Thickness", description="Relative thickness of the highlighting lines",
+#         default=5, min=0, soft_max=10, precision=1, step=10, subtype='FACTOR')
+#
+#     convex_color: bpy.props.FloatVectorProperty(
+#         name="Inner Convex Lines", description="Color of lines to be folded to a convex angle",
+#         default=(0.0, 0.0, 0.0, 1.0), min=0, max=1, subtype='COLOR', size=4)
+#     convex_style: bpy.props.EnumProperty(
+#         name="Convex Lines Drawing Style", description="Drawing style of lines to be folded to a convex angle",
+#         default='DASH', items=line_styles)
+#     convex_width: bpy.props.FloatProperty(
+#         name="Convex Lines Thickness", description="Relative thickness of concave lines",
+#         default=2, min=0, soft_max=10, precision=1, step=10, subtype='FACTOR')
+#     concave_color: bpy.props.FloatVectorProperty(
+#         name="Inner Concave Lines", description="Color of lines to be folded to a concave angle",
+#         default=(0.0, 1.0, 0.0, 1.0), min=0, max=1, subtype='COLOR', size=4)
+#     concave_style: bpy.props.EnumProperty(
+#         name="Concave Lines Drawing Style", description="Drawing style of lines to be folded to a concave angle",
+#         default='SOLID', items=line_styles)
+#     concave_width: bpy.props.FloatProperty(
+#         name="Concave Lines Thickness", description="Relative thickness of concave lines",
+#         default=2, min=0, soft_max=10, precision=1, step=10, subtype='FACTOR')
+#     freestyle_color: bpy.props.FloatVectorProperty(
+#         name="Freestyle Edges", description="Color of lines marked as Freestyle Edge",
+#         default=(0.0, 0.0, 0.0, 1.0), min=0, max=1, subtype='COLOR', size=4)
+#     freestyle_style: bpy.props.EnumProperty(
+#         name="Freestyle Edges Drawing Style", description="Drawing style of Freestyle Edges",
+#         default='SOLID', items=line_styles)
+#     freestyle_width: bpy.props.FloatProperty(
+#         name="Freestyle Edges Thickness", description="Relative thickness of Freestyle edges",
+#         default=2, min=0, soft_max=10, precision=1, step=10, subtype='FACTOR')
+#     use_inbg: bpy.props.BoolProperty(
+#         name="Highlight Inner Lines", description="Add another line below every line to improve contrast",
+#         default=True)
+#     inbg_color: bpy.props.FloatVectorProperty(
+#         name="Inner Highlight", description="Color of the highlight for inner lines",
+#         default=(1.0, 1.0, 1.0, 1.0), min=0, max=1, subtype='COLOR', size=4)
+#     inbg_width: bpy.props.FloatProperty(
+#         name="Inner Highlight Thickness", description="Relative thickness of the highlighting lines",
+#         default=2, min=0, soft_max=10, precision=1, step=10, subtype='FACTOR')
+#
+#     sticker_fill: bpy.props.FloatVectorProperty(
+#         name="Tabs Fill", description="Fill color of sticking tabs",
+#         default=(0.9, 0.9, 0.9, 1.0), min=0, max=1, subtype='COLOR', size=4)
+#     text_color: bpy.props.FloatVectorProperty(
+#         name="Text Color", description="Color of all text used in the document",
+#         default=(0.0, 0.0, 0.0, 1.0), min=0, max=1, subtype='COLOR', size=4)
 
 
 class AddThickness(bpy.types.Operator):
