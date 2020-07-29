@@ -51,7 +51,7 @@ class StorageUI:
 
 
     current_thickness = 3
-    current_num_slices = 10
+    current_num_slices = 3
     do_create_uvmap = False
     priority_effect = {
         'CONVEX': 1,
@@ -1262,7 +1262,7 @@ class OBJECT_PT_Laser_Slicer_Panel(bpy.types.Panel):
         row = layout.row()
         # cutdir = scene.slicer_settings.direction
         num_slices = scene.slicer_settings.num_slices
-
+        newrow(layout, "Number of Slices:", scene.slicer_settings, 'num_slices')
         # if bpy.data.filepath or context.scene.slicer_settings.laser_slicer_ofile:
         split = layout.split()
         col = split.column()

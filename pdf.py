@@ -242,7 +242,7 @@ class PDF:
                             data_convex.append(data_uvedge)
                         else:
                             data_concave.append(data_uvedge)
-                    elif(uvedge.sticker and uvedge.type == 'glue'):
+                    elif(uvedge.sticker and (uvedge.type == 'glue' or uvedge.type == 'auto') ):
                         if edge.angle > self.angle_epsilon:
                             data_convex.append(data_uvedge)
                         else:
