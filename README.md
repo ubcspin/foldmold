@@ -3,11 +3,10 @@ mold with a fold
 
 Instructions:
 1. Install Blender
-2. On a windows, go to the "C:\Program Files\Blender Foundation\Blender 2.81\2.81\scripts\addons" folder. On a mac, go to "/Applications/Blender.app/Contents/Resources/2.82/scripts/addons".
-3. Copy foldmold folder to this folder
-4. In Blender, go to edit>preferences>addons and make sure "FoldMold" is enabled
-5. Open armature.py in the Scripting tab in blender
-6. To export the paper model, go to file>export>paper model. To export the armature, run the armature script in Blender, and then select an output location from the Laser Slicer interface.
+2. Zip up the foldmold directory
+1. Open Edit->Preferences->Add-ons
+2. Click on "Install..." and select the zip file
+3. Tick the checkbox to enable the addon
 
 
 Python build:
