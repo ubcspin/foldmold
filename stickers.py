@@ -125,16 +125,7 @@ class Stickers:
             return UVVertex(M.Vector((v.real, v.imag)))
 
     def load_geometry(self, filename):
-        path_to_stickers_mac = "/Applications/Blender.app/Contents/Resources/2.82/scripts/addons/foldmold/Stickers/"
-        path_to_stickers_win = "C:\Program Files\\Blender Foundation\\Blender 2.81\\2.81\\scripts\\addons\\foldmold\\Stickers\\"
-
-        if sys.platform.startswith('win32'):
-            path_to_stickers = path_to_stickers_win
-        elif sys.platform.startswith('darwin'):
-            path_to_stickers = path_to_stickers_mac
-        else:
-            raise ValueError('Please add path for system other than windows or osx')
-
+        path_to_stickers = os_path.join(os_path.dirname(__file__), 'Stickers')
         return self.svg2uv(os_path.join(path_to_stickers, filename))
 
 
