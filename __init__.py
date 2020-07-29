@@ -35,6 +35,16 @@ bl_info = {
 
 import bpy
 
+
+# ensure dependencies exist
+try:
+    import svglib, svgpathtools
+except ImportError:
+    import subprocess
+    print("Installing dependencies...")
+    subprocess.check_call([bpy.app.binary_path_python, '-m', 'pip', 'install', 'svglib', 'svgpathtools'])
+
+
 from . import auto_load
 
 auto_load.init()
