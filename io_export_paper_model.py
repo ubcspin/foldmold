@@ -61,6 +61,7 @@ class StorageUI:
 
     def setThickness(self, thickness):
         self.current_thickness = thickness
+        print(self.current_thickness)
 
     def getThickness(self):
         return self.current_thickness
@@ -751,7 +752,8 @@ class AddThickness(bpy.types.Operator):
         obj = context.active_object
         # print(obj.name)
         bpy.ops.object.modifier_add(type='SOLIDIFY')
-        bpy.context.object.modifiers["Solidify"].thickness = storage.getThickness()
+        print(storage.getThickness())
+        bpy.context.object.modifiers["Solidify"].thickness = storage.getThickness()/100
         bpy.context.object.modifiers["Solidify"].offset = 1
         bpy.context.object.modifiers["Solidify"].use_rim = True
         bpy.context.object.modifiers["Solidify"].use_rim_only = True
@@ -1327,11 +1329,13 @@ class OBJECT_PT_Mold_Panel(bpy.types.Panel):
 
 def on_update_material(self, context):
     self.laser_slicer_material_thick = storage.global_materials_thickness[self.laser_slicer_material]
-    storage.setThickness(storage.global_materials_thickness[self.laser_slicer_material])
+    storage.setThickness(self.laser_slicer_material_thick)
 
 def on_update_num(self, context):
     storage.current_num_slices = self.num_slices
 
+def on_update_thick(self, context):
+    storage.setThickness(self.laser_slicer_material_thick)
 
 class Slicer_Settings(bpy.types.PropertyGroup):
     # direction: bpy.props.StringProperty(name="", description="Axis along which to cut", default='x')
@@ -1341,7 +1345,7 @@ class Slicer_Settings(bpy.types.PropertyGroup):
                                         items=storage.global_materials)
     laser_slicer_material_thick: bpy.props.FloatProperty(
         name="", description="Thickness of the cutting material in mm",
-        min=0.1, max=50, default=3)
+        min=0.1, max=50, default=3, update=on_update_thick)
     laser_slicer_material_width: bpy.props.FloatProperty(
         name="", description="Width of the cutting material in mm",
         min=1, max=5000, default=450)
