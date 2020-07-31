@@ -187,13 +187,14 @@ class Ribbing:
         # print(not_slice[0].name)
         i = 0
         for slice in slices:
-            # bpy.context.view_layer.objects.active = slice
-            # diff = slice.modifiers.new(name="Boolean-c"+str(i), type="BOOLEAN")
-            # diff.object = not_slice[0]
-            # diff.operation = "DIFFERENCE"
-            # diff.double_threshold = 0
-            # bpy.ops.object.modifier_apply(apply_as='DATA', modifier="Boolean-c"+str(i))
-            # # print(slice.name, diff.object.name)
+            if(slice.name.startswith("Slice-x") or slice.name.startswith("Slice-z")):
+                bpy.context.view_layer.objects.active = slice
+                diff = slice.modifiers.new(name="Boolean-c"+str(i), type="BOOLEAN")
+                diff.object = not_slice[0]
+                diff.operation = "DIFFERENCE"
+                diff.double_threshold = 0
+                bpy.ops.object.modifier_apply(apply_as='DATA', modifier="Boolean-c"+str(i))
+            # print(slice.name, diff.object.name)
 
 
             bpy.context.view_layer.objects.active = slice
@@ -641,6 +642,13 @@ class Ribbing:
                         # diff.double_threshold = 0
                         bpy.ops.object.modifier_apply(apply_as='DATA', modifier="Boolean")
 
+                bpy.context.view_layer.objects.active = slice
+                diff = slice.modifiers.new(name="Boolean-c"+str(i), type="BOOLEAN")
+                diff.object = not_slice[0]
+                diff.operation = "DIFFERENCE"
+                diff.double_threshold = 0
+                bpy.ops.object.modifier_apply(apply_as='DATA', modifier="Boolean-c"+str(i))
+
 
         copies = [c for c in bpy.context.scene.objects if c.name.startswith("Copy")]
         for copy in copies:
@@ -648,18 +656,20 @@ class Ribbing:
         bpy.ops.object.delete()
 
 
-        # for slice in slices:
-        #     bpy.context.view_layer.objects.active = slice
-        #     bpy.ops.object.mode_set(mode='EDIT')
-        #     bm = bmesh.from_edit_mesh(slice.data)
-        #
-        #     for edge in bm.edges:
-        #         edge.seam = True
-        #         print(len(edge.link_faces))
-        #         if (len(edge.link_faces) < 2):
-        #             edge.seam = True
-        #
-        #         elif(len(edge.link_faces) > 2):
-        #             edge.seam = False
-        #         elif(edge.calc_face_angle() < 1):
-        #                 edge.seam = False
+        for slice in slices:
+            bpy.context.view_layer.objects.active = slice
+            bpy.ops.object.mode_set(mode='EDIT')
+            # bm = bmesh.from_edit_mesh(slice.data)
+            bpy.ops.mesh.remove_doubles()
+
+            bpy.ops.object.mode_set(mode='OBJECT')
+            # for edge in bm.edges:
+            #     edge.seam = True
+            #     print(len(edge.link_faces))
+            #     if (len(edge.link_faces) < 2):
+            #         edge.seam = True
+            #
+            #     elif(len(edge.link_faces) > 2):
+            #         edge.seam = False
+            #     elif(edge.calc_face_angle() < 1):
+            #             edge.seam = False
