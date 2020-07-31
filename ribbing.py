@@ -132,12 +132,12 @@ class Ribbing:
             mesh.name = "Ribbed-"+mesh.name
 
         #top
-        bpy.ops.mesh.primitive_cube_add(location=(mesh.location.x, mesh.location.y, mesh.dimensions.z*0.9))
+        bpy.ops.mesh.primitive_cube_add(location=(mesh.location.x, mesh.location.y, mesh.dimensions.z*1.3))
         bpy.context.active_object.scale = (mesh.dimensions.x, mesh.dimensions.y, self.thickness/1000)
         bpy.context.active_object.name = "Slice-z-to"
         outside = bpy.context.active_object
 
-        bpy.ops.mesh.primitive_cube_add(location=(mesh.location.x, mesh.location.y, mesh.dimensions.z*0.9))
+        bpy.ops.mesh.primitive_cube_add(location=(mesh.location.x, mesh.location.y, mesh.dimensions.z*1.3))
         bpy.context.active_object.scale = (mesh.dimensions.x*0.65, mesh.dimensions.y*0.65, self.thickness/100)
         bpy.context.active_object.name = "Slice-z-ti"
         inside = bpy.context.active_object
@@ -187,12 +187,13 @@ class Ribbing:
         # print(not_slice[0].name)
         i = 0
         for slice in slices:
-            bpy.context.view_layer.objects.active = slice
-            diff = slice.modifiers.new(name="Boolean-c"+str(i), type="BOOLEAN")
-            diff.object = not_slice[0]
-            diff.operation = "DIFFERENCE"
-            diff.double_threshold = 0
-            bpy.ops.object.modifier_apply(apply_as='DATA', modifier="Boolean-c"+str(i))
+            if(slice.name.startswith("Slice-x") or slice.name.startswith("Slice-z")):
+                bpy.context.view_layer.objects.active = slice
+                diff = slice.modifiers.new(name="Boolean-c"+str(i), type="BOOLEAN")
+                diff.object = not_slice[0]
+                diff.operation = "DIFFERENCE"
+                diff.double_threshold = 0
+                bpy.ops.object.modifier_apply(apply_as='DATA', modifier="Boolean-c"+str(i))
             # print(slice.name, diff.object.name)
 
 
@@ -214,8 +215,8 @@ class Ribbing:
 
             def z_pos(vert):
                 return vert.co.z
-            def y_pos(edge):
-                return (edge.verts[0].co.y + edge.verts[1].co.y)/2
+            def y_pos(vert):
+                return vert.co.y
 
 
             if(slice.name.startswith("Slice-x")):
@@ -272,7 +273,7 @@ class Ribbing:
                 for edge in bm.edges:
                     if edge.select and not edge.seam:
                         useless_edges.append(edge)
-                bmesh.ops.delete(bm, geom=useless_edges, context="EDGES")
+                # bmesh.ops.delete(bm, geom=useless_edges, context="EDGES")
                 bmesh.update_edit_mesh(slice.data)
 
                 bpy.ops.object.mode_set(mode='OBJECT')
@@ -297,7 +298,7 @@ class Ribbing:
                     if(len(edge.link_faces) < 2):
                         edge.select = True
                         useless_edges.append(edge)
-                bmesh.ops.delete(bm, geom=useless_edges, context="EDGES")
+                # bmesh.ops.delete(bm, geom=useless_edges, context="EDGES")
                 selectedVerts = []
                 for vert in bm.verts:
                     if(vert.select):
@@ -416,32 +417,51 @@ class Ribbing:
             # go object mode again
             bpy.ops.object.mode_set(mode='OBJECT')
 
-            if(slice.name.startswith("Slice-x-t")):
+            # if(slice.name.startswith("Slice-x")):
+            #
+            #     bpy.context.view_layer.objects.active = slice
+            #
+            #     # go edit mode
+            #     bpy.ops.object.mode_set(mode='EDIT')
+            #     bm = bmesh.from_edit_mesh(slice.data)
+            #     bpy.ops.mesh.select_non_manifold()
+            #     selectedVerts = []
+            #     flat = []
+            #     vertical = []
+            #     for edge in bm.edges:
+            #         if(edge.select):
+            #             selectedVerts.append(edge)
+            #             if(edge.verts[0].co.x == edge.verts[1].co.x and edge.verts[0].co.y == edge.verts[1].co.y):
+            #                 if(edge.verts[0] not in vertical):
+            #                     vertical.append(edge.verts[0])
+            #                 if(edge.verts[1] not in vertical):
+            #                     vertical.append(edge.verts[1])
+            #             else:
+            #                 if(edge.verts[0] not in flat):
+            #                     flat.append(edge.verts[0])
+            #                 if(edge.verts[1] not in flat):
+            #                     flat.append(edge.verts[1])
+            #
+            #     flat.sort(key=y_pos)
+            #     bmesh.ops.contextual_create(bm, geom=flat[:4])
+            #     bmesh.ops.contextual_create(bm, geom=flat[4:])
+            #
+            #     vertical.sort(key=y_pos)
+            #     bmesh.ops.contextual_create(bm, geom=vertical[:4])
+            #     bmesh.ops.contextual_create(bm, geom=vertical[4:])
 
-                bpy.context.view_layer.objects.active = slice
-
-                # go edit mode
-                bpy.ops.object.mode_set(mode='EDIT')
-                bm = bmesh.from_edit_mesh(slice.data)
-                bpy.ops.mesh.select_non_manifold()
-                selectedVerts = []
-                for edge in bm.edges:
-                    if(edge.select):
-                        selectedVerts.append(edge)
-                selectedVerts.sort(key=y_pos)
-                bmesh.ops.contextual_create(bm, geom=selectedVerts[:2])
-                bmesh.ops.contextual_create(bm, geom=selectedVerts[2:4])
-                bmesh.ops.contextual_create(bm, geom=selectedVerts[4:6])
-                bmesh.ops.contextual_create(bm, geom=selectedVerts[6:])
-
-                bmesh.ops.contextual_create(bm, geom=bm.edges)
-                bmesh.update_edit_mesh(slice.data)
-
-                for edge in bm.edges:
-                    edge.seam = True
-                bpy.ops.object.mode_set(mode='OBJECT')
-
-
+                # selectedVerts.sort(key=y_pos)
+                # bmesh.ops.contextual_create(bm, geom=selectedVerts[:4])
+                # # bmesh.ops.contextual_create(bm, geom=selectedVerts[2:4])
+                # # bmesh.ops.contextual_create(bm, geom=selectedVerts[4:6])
+                # bmesh.ops.contextual_create(bm, geom=selectedVerts[4:])
+                #
+                # bmesh.ops.contextual_create(bm, geom=bm.edges)
+                # bmesh.update_edit_mesh(slice.data)
+                #
+                # for edge in bm.edges:
+                #     edge.seam = True
+                # bpy.ops.object.mode_set(mode='OBJECT')
         ######################SLOTS - Z
 
 
@@ -524,7 +544,7 @@ class Ribbing:
         for slice in slices:
 
             if(slice.name.startswith("Slice-x-t")):
-                slice.location = (slice.location.x, slice.location.y, slice.location.z+slice.dimensions.z/4)
+                slice.location = (slice.location.x, slice.location.y, slice.location.z+slice.dimensions.z/1.5)
 
                 slice_copy = slice.copy()
                 slice_copy.name = "Copy"
@@ -568,7 +588,7 @@ class Ribbing:
 
 
             if(slice.name.startswith("Slice-x-b")):
-                    slice.location = (slice.location.x, slice.location.y, slice.location.z-slice.dimensions.z/4)
+                    slice.location = (slice.location.x, slice.location.y, slice.location.z-slice.dimensions.z/1.5)
 
                     slice_copy= slice.copy()
                     slice_copy.name = "Copy"
@@ -622,9 +642,34 @@ class Ribbing:
                         # diff.double_threshold = 0
                         bpy.ops.object.modifier_apply(apply_as='DATA', modifier="Boolean")
 
+                bpy.context.view_layer.objects.active = slice
+                diff = slice.modifiers.new(name="Boolean-c"+str(i), type="BOOLEAN")
+                diff.object = not_slice[0]
+                diff.operation = "DIFFERENCE"
+                diff.double_threshold = 0
+                bpy.ops.object.modifier_apply(apply_as='DATA', modifier="Boolean-c"+str(i))
+
 
         copies = [c for c in bpy.context.scene.objects if c.name.startswith("Copy")]
         for copy in copies:
             copy.select_set(True)
         bpy.ops.object.delete()
 
+
+        for slice in slices:
+            bpy.context.view_layer.objects.active = slice
+            bpy.ops.object.mode_set(mode='EDIT')
+            # bm = bmesh.from_edit_mesh(slice.data)
+            bpy.ops.mesh.remove_doubles()
+
+            bpy.ops.object.mode_set(mode='OBJECT')
+            # for edge in bm.edges:
+            #     edge.seam = True
+            #     print(len(edge.link_faces))
+            #     if (len(edge.link_faces) < 2):
+            #         edge.seam = True
+            #
+            #     elif(len(edge.link_faces) > 2):
+            #         edge.seam = False
+            #     elif(edge.calc_face_angle() < 1):
+            #             edge.seam = False

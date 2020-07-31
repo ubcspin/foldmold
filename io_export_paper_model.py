@@ -248,6 +248,7 @@ class ApplyScores(bpy.types.Operator):
         return context.active_object and context.active_object.type == 'MESH'
 
     def execute(self, context):
+        print(storage.scoredir)
         ob = context.object
         me = ob.data
         bm = bmesh.from_edit_mesh(me)
@@ -1202,11 +1203,11 @@ def index_edge (self, context):
 def index_score(self, context):
 
     if (int(context.scene.score_direction) == 1):
-        ApplyScores.scoredir = 'x'
+        storage.scoredir = 'x'
     elif(int(context.scene.score_direction) == 2):
-        ApplyScores.scoredir = 'y'
+        storage.scoredir = 'y'
     elif(int(context.scene.score_direction) == 3):
-        ApplyScores.scoredir = 'z'
+        storage.scoredir = 'z'
 
 
 def score_density(self, context):
