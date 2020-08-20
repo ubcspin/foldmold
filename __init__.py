@@ -37,12 +37,19 @@ import bpy
 
 
 # ensure dependencies exist
+import os, sys
+depdir = os.path.join(os.path.dirname(__file__), 'dependencies')
+try:
+    os.mkdir(depdir)
+except FileExistsError:
+    pass
+sys.path.append(depdir)
 try:
     import svglib, svgpathtools
 except ImportError:
     import subprocess
-    print("Installing dependencies...")
-    subprocess.check_call([bpy.app.binary_path_python, '-m', 'pip', 'install', 'svglib', 'svgpathtools'])
+    print("Installing dependencies to", depdir)
+    subprocess.check_call([bpy.app.binary_path_python, '-m', 'pip', 'install', '--target', depdir, 'svglib', 'svgpathtools'])
 
 
 from . import auto_load
