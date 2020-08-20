@@ -1200,6 +1200,7 @@ def index_edge (self, context):
     elif(int(context.scene.dropdown_list) == 4):
         storage.current_edge = "glue"
 
+    print(storage.current_edge)
 def index_score(self, context):
 
     if (int(context.scene.score_direction) == 1):
