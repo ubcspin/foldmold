@@ -212,7 +212,23 @@ class SawtoothPattern(AbstractPattern):
 
 class PinPattern(AbstractPattern):
     def __init__(self, thickness_switch, isreversed):
-        AbstractPattern.__init__(self, isreversed, [Hole(thickness_switch), Connector(thickness_switch)], [Pin(thickness_switch), Gap(thickness_switch)])
+        AbstractPattern.__init__(self, isreversed, [ Hole(thickness_switch), Connector(thickness_switch)], [Gap(thickness_switch), Pin(thickness_switch)])
+
+    def getGeometry(self):
+        vertices = []
+        space = 0
+        for tile in self.tileset:
+            for vi in tile.geometry:
+                if(vi.co.x != 0.5):
+                    vertices.insert(len(vertices), UVVertex(M.Vector((vi.co.x +space, vi.co.y))))
+                else:
+                    vertices.insert(len(vertices), UVVertex(M.Vector((vi.co.x, vi.co.y))))
+                print(vi.co.x + space)
+            if(self.isreversed):
+                space += tile.width
+            else:
+                space += tile.width
+        return vertices
 
 class PourHolePattern(AbstractPattern):
     def __init__(self, isreversed):
@@ -602,7 +618,7 @@ class AbstractStickerConstructor:
         self.geometry, self.geometry_co = self.construct(self.offset_left, midsection_count, self.pattern)
 
     def get_midsection_count(self, width, pattern):
-        if (isinstance(pattern, PourHolePattern)):
+        if (isinstance(pattern, PourHolePattern) or isinstance(pattern, PinPattern)):
             return 1
         else:
             return floor(width / pattern.width)

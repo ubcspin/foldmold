@@ -203,25 +203,29 @@ class Mesh:
 
 
         if(direction == 'x'):
-            front_vector = M.Vector((1, 0, 0))
+            front_vector = M.Vector((float(1), float(0), float(0)))
             frontestfaces = []
             for face, uvface in initial_uvfaces.items():
                 # print(face.normal)
-                if(face.normal.x == front_vector.x and abs(round(face.normal.y, 3)) == front_vector.y and abs(round(face.normal.z, 3)) == front_vector.z):
+                if((round(face.normal.x, 3)) == front_vector.x and abs(round(face.normal.y,3)) == front_vector.y and abs(round(face.normal.z, 3)) == front_vector.z):
                     frontestfaces.append(face)
+                else:
+                    print("("+str((round(face.normal.x, 3))) + ", "+str(abs(round(face.normal.y,3))) + ", "+str(abs(round(face.normal.z,3))))
+            if(len(frontestfaces) == 0):
+                print("CORRUPT**********")
         elif(direction == 'y'):
-            front_vector = M.Vector((0, 1, 0))
+            front_vector = M.Vector((float(0), float(1), float(0)))
             frontestfaces = []
             for face, uvface in initial_uvfaces.items():
                 # print(face.normal)
-                if(abs(round(face.normal.x, 3)) == front_vector.x and face.normal.y == front_vector.y and abs(round(face.normal.z, 3)) == front_vector.z):
+                if(abs(round(face.normal.x, 3)) == front_vector.x and round(face.normal.y, 3) == front_vector.y and abs(round(face.normal.z, 3)) == front_vector.z):
                     frontestfaces.append(face)
         elif(direction == 'z'):
-            front_vector = M.Vector((0, 0, 1))
+            front_vector = M.Vector((float(0), float(0), float(1)))
             frontestfaces = []
             for face, uvface in initial_uvfaces.items():
                 # print(face.normal)
-                if(abs(round(face.normal.x, 3)) == front_vector.x and abs(round(face.normal.y)) == front_vector.y and face.normal.z == front_vector.z):
+                if(abs(round(face.normal.x, 3)) == front_vector.x and abs(round(face.normal.y)) == front_vector.y and round(face.normal.z, 3) == front_vector.z):
                     frontestfaces.append(face)
 
 
