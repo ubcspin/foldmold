@@ -17,8 +17,10 @@ class Ribbing:
         for i in range(1, self.num_slices+1):
             #top
             spot = (mesh.location.x - mesh.dimensions.x/2) + i*(mesh.dimensions.x)/(self.num_slices +1)
+
             bpy.ops.mesh.primitive_cube_add(location=(spot, mesh.location.y, mesh.location.z + mesh.dimensions.z/2))
             bpy.context.active_object.scale = (self.thickness/1000, mesh.dimensions.y, mesh.dimensions.z/2)
+
             bpy.context.active_object.name = "Slice-x-t"
             mainobj = bpy.context.active_object
 
@@ -68,8 +70,10 @@ class Ribbing:
 
             #left
             spot = (mesh.location.y - mesh.dimensions.y/2) + i*(mesh.dimensions.y)/(self.num_slices+1)
+
             bpy.ops.mesh.primitive_cube_add(location=(mesh.location.x+mesh.dimensions.x/2, spot, mesh.location.z))
             bpy.context.active_object.scale = (mesh.dimensions.x/2, self.thickness/1000, mesh.dimensions.z)
+
             bpy.context.active_object.name = "Slice-y"
             mainobj = bpy.context.active_object
 
@@ -132,12 +136,14 @@ class Ribbing:
             mesh.name = "Ribbed-"+mesh.name
 
         #top
+
         bpy.ops.mesh.primitive_cube_add(location=(mesh.location.x, mesh.location.y, mesh.dimensions.z*0.9))
         bpy.context.active_object.scale = (mesh.dimensions.x*1.2, mesh.dimensions.y*1.2, self.thickness/1000)
         bpy.context.active_object.name = "Slice-z-to"
         outside = bpy.context.active_object
 
         bpy.ops.mesh.primitive_cube_add(location=(mesh.location.x, mesh.location.y, mesh.dimensions.z*0.9))
+
         bpy.context.active_object.scale = (mesh.dimensions.x*0.65, mesh.dimensions.y*0.65, self.thickness/100)
         bpy.context.active_object.name = "Slice-z-ti"
         inside = bpy.context.active_object
@@ -155,7 +161,9 @@ class Ribbing:
         # bottom
         bpy.ops.mesh.primitive_cube_add(
             location=(mesh.location.x, mesh.location.y, mesh.location.z -mesh.dimensions.z*0.9))
+
         bpy.context.active_object.scale = (mesh.dimensions.x*1.2, mesh.dimensions.y*1.2, self.thickness / 1000)
+
         bpy.context.active_object.name = "Slice-z-bo"
         outside = bpy.context.active_object
 
@@ -224,6 +232,7 @@ class Ribbing:
                 return vert.co.z
             def y_pos(vert):
                 return vert.co.y
+
 
             #
             # if(slice.name.startswith("Slice-x")):
@@ -404,6 +413,7 @@ class Ribbing:
             #
             # # bmesh.update_edit_mesh(slice.data)
             #
+
             bpy.ops.object.mode_set(mode='OBJECT')
 
 
@@ -661,6 +671,13 @@ class Ribbing:
                         # diff.double_threshold = 0
                         bpy.ops.object.modifier_apply(apply_as='DATA', modifier="Boolean")
 
+                bpy.context.view_layer.objects.active = slice
+                diff = slice.modifiers.new(name="Boolean-c"+str(i), type="BOOLEAN")
+                diff.object = not_slice[0]
+                diff.operation = "DIFFERENCE"
+                diff.double_threshold = 0
+                bpy.ops.object.modifier_apply(apply_as='DATA', modifier="Boolean-c"+str(i))
+
 
 
                 bpy.context.view_layer.objects.active = slice
@@ -677,6 +694,7 @@ class Ribbing:
         for slice in slices:
             bpy.context.view_layer.objects.active = slice
             bpy.ops.object.mode_set(mode='EDIT')
+
             bm = bmesh.from_edit_mesh(slice.data)
             bpy.ops.mesh.remove_doubles()
 
@@ -684,6 +702,7 @@ class Ribbing:
                 if edge.is_valid:
                     edge.seam = True
             bpy.ops.object.mode_set(mode='OBJECT')
+
             #     print(len(edge.link_faces))
             #     if (len(edge.link_faces) < 2):
             #         edge.seam = True
